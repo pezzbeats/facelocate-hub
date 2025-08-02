@@ -6,7 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Landing from "./pages/Landing";
 import Setup from "./pages/Setup";
-import Kiosk from "./pages/Kiosk";
+import KioskInterface from "./pages/KioskInterface";
 import KioskRegister from "./pages/KioskRegister";
 import AdminDashboard from "./pages/AdminDashboard";
 import NotFound from "./pages/NotFound";
@@ -22,7 +22,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/setup" element={<Setup />} />
-          <Route path="/kiosk" element={<Kiosk />} />
+          <Route path="/kiosk" element={<KioskInterface />} />
           <Route path="/kiosk/register" element={<KioskRegister />} />
           <Route path="/admin" element={<AdminDashboard />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
