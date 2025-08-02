@@ -47,7 +47,10 @@ const Setup = () => {
 
     setLoading(true);
     try {
-      // Create the admin user account
+      let userId: string;
+      let userEmail: string;
+
+      // First, try to sign up the user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -56,35 +59,85 @@ const Setup = () => {
         }
       });
 
-      if (authError) throw authError;
+      // If user already exists, sign them in instead
+      if (authError?.message?.includes('User already registered')) {
+        const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+          email: formData.email,
+          password: formData.password
+        });
 
-      if (authData.user) {
-        // Insert admin user record
+        if (signInError) {
+          throw new Error('User already exists but password is incorrect. Please use the correct password or contact support.');
+        }
+
+        if (!signInData.user) {
+          throw new Error('Failed to sign in existing user.');
+        }
+
+        userId = signInData.user.id;
+        userEmail = signInData.user.email!;
+      } else if (authError) {
+        throw authError;
+      } else if (authData.user) {
+        userId = authData.user.id;
+        userEmail = authData.user.email!;
+      } else {
+        throw new Error('Failed to create or sign in user.');
+      }
+
+      // Check if admin user already exists
+      const { data: existingAdmin } = await supabase
+        .from('admin_users')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      // Insert admin user record only if it doesn't exist
+      if (!existingAdmin) {
         const { error: insertError } = await supabase
           .from('admin_users')
           .insert({
-            id: authData.user.id,
-            email: formData.email,
+            id: userId,
+            email: userEmail,
             full_name: formData.fullName,
             role: 'super_admin'
           });
 
         if (insertError) throw insertError;
+      }
 
-        // Update company name in system config
-        const { error: configError } = await supabase
+      // Update or insert company name in system config
+      const { data: existingConfig } = await supabase
+        .from('system_config')
+        .select('id')
+        .eq('config_key', 'company_name')
+        .single();
+
+      if (existingConfig) {
+        const { error: updateError } = await supabase
           .from('system_config')
           .update({ config_value: formData.companyName })
           .eq('config_key', 'company_name');
 
-        if (configError) throw configError;
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('system_config')
+          .insert({
+            config_key: 'company_name',
+            config_value: formData.companyName,
+            description: 'Company name for the organization'
+          });
 
-        setStep(2);
-        toast({
-          title: "Setup Complete!",
-          description: "Your admin account has been created successfully.",
-        });
+        if (insertError) throw insertError;
       }
+
+      setStep(2);
+      toast({
+        title: "Setup Complete!",
+        description: "Your admin account has been configured successfully.",
+      });
+
     } catch (error: any) {
       toast({
         title: "Setup Failed",
