@@ -102,17 +102,21 @@ const Kiosk = () => {
       <main className="container mx-auto px-6 py-8">
         <div className="max-w-2xl mx-auto">
           {/* Welcome Message */}
-          <div className="text-center mb-8">
-            <h2 className="text-3xl font-bold text-foreground mb-2">
+          <div className="text-center mb-8 animate-fade-in">
+            <h2 className="text-4xl font-bold text-foreground mb-4 bg-gradient-primary bg-clip-text text-transparent">
               Face Recognition Attendance
             </h2>
-            <p className="text-lg text-muted-foreground">
+            <p className="text-xl text-muted-foreground">
               Position your face in the camera view and wait for recognition
             </p>
+            <div className="mt-4 flex items-center justify-center gap-2 text-success">
+              <div className="h-3 w-3 bg-success rounded-full animate-pulse"></div>
+              <span className="font-medium">System Ready</span>
+            </div>
           </div>
 
           {/* Camera Interface Card */}
-          <Card className="mb-8 shadow-kiosk border-2">
+          <Card className="mb-8 shadow-kiosk border-2 bg-gradient-to-br from-card to-card/50 hover:shadow-elegant transition-all duration-300">
             <CardHeader className="text-center">
               <CardTitle className="text-xl flex items-center justify-center gap-2">
                 <Camera className="h-6 w-6" />
@@ -124,32 +128,38 @@ const Kiosk = () => {
             </CardHeader>
             <CardContent>
               {/* Camera View Placeholder */}
-              <div className="aspect-video bg-muted rounded-lg border-2 border-dashed border-border flex items-center justify-center mb-6">
-                <div className="text-center">
-                  <Camera className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                  <p className="text-muted-foreground">Camera will activate here</p>
-                  <p className="text-sm text-muted-foreground mt-2">
-                    Face recognition module will be implemented in next phase
+              <div className="aspect-video bg-gradient-to-br from-muted to-muted/50 rounded-lg border-2 border-dashed border-primary/30 flex items-center justify-center mb-6 relative overflow-hidden">
+                <div className="absolute inset-0 bg-gradient-to-r from-primary/5 to-success/5"></div>
+                <div className="text-center relative z-10">
+                  <div className="relative mb-4">
+                    <Camera className="h-20 w-20 text-primary mx-auto animate-pulse" />
+                    <div className="absolute -top-2 -right-2 h-6 w-6 bg-success rounded-full flex items-center justify-center">
+                      <div className="h-3 w-3 bg-white rounded-full"></div>
+                    </div>
+                  </div>
+                  <p className="text-lg font-semibold text-foreground mb-2">Camera Ready</p>
+                  <p className="text-sm text-muted-foreground">
+                    Face recognition will be activated here
                   </p>
                 </div>
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 animate-scale-in">
                 <Button
                   variant="kiosk-success"
-                  size="kiosk"
-                  className="w-full"
+                  size="kiosk-xl"
+                  className="w-full group"
                 >
-                  <Clock className="h-6 w-6 mr-2" />
+                  <Clock className="h-8 w-8 mr-3 group-hover:scale-110 transition-transform" />
                   Clock In
                 </Button>
                 <Button
                   variant="kiosk"
-                  size="kiosk"
-                  className="w-full"
+                  size="kiosk-xl"
+                  className="w-full group"
                 >
-                  <Clock className="h-6 w-6 mr-2" />
+                  <Clock className="h-8 w-8 mr-3 group-hover:scale-110 transition-transform" />
                   Clock Out
                 </Button>
               </div>
@@ -169,7 +179,7 @@ const Kiosk = () => {
           </Card>
 
           {/* Status Information */}
-          <div className="grid md:grid-cols-3 gap-4">
+          <div className="grid md:grid-cols-3 gap-4 animate-fade-in" style={{animationDelay: '0.3s'}}>
             <Card className="bg-success/5 border-success/20">
               <CardContent className="pt-4">
                 <div className="text-center">

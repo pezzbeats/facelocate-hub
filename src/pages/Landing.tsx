@@ -41,9 +41,9 @@ const Landing = () => {
         </div>
 
         {/* Interface Selection Cards */}
-        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto">
+        <div className="grid md:grid-cols-2 gap-8 max-w-4xl mx-auto animate-fade-in">
           {/* Kiosk Interface Card */}
-          <Card className="group hover:shadow-kiosk transition-all duration-300 border-2 hover:border-primary cursor-pointer transform hover:scale-105">
+          <Card className="group hover:shadow-kiosk transition-all duration-300 border-2 hover:border-primary cursor-pointer transform hover:scale-105 bg-gradient-to-br from-card to-card/50">
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 p-4 bg-primary/10 rounded-full w-16 h-16 flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                 <Monitor className="h-8 w-8" />
@@ -80,7 +80,7 @@ const Landing = () => {
           </Card>
 
           {/* Admin Interface Card */}
-          <Card className="group hover:shadow-kiosk transition-all duration-300 border-2 hover:border-primary cursor-pointer transform hover:scale-105">
+          <Card className="group hover:shadow-kiosk transition-all duration-300 border-2 hover:border-primary cursor-pointer transform hover:scale-105 bg-gradient-to-br from-card to-card/50">
             <CardHeader className="text-center">
               <div className="mx-auto mb-4 p-4 bg-primary/10 rounded-full w-16 h-16 flex items-center justify-center group-hover:bg-primary group-hover:text-primary-foreground transition-colors">
                 <Settings className="h-8 w-8" />
