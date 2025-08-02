@@ -4,6 +4,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import EmployeeManagement from "@/components/EmployeeManagement";
+import LocationManagement from "@/components/LocationManagement";
+import DeviceManagement from "@/components/DeviceManagement";
+import AttendanceReports from "@/components/AttendanceReports";
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
+import TemporaryExitManagement from "@/components/TemporaryExitManagement";
 import { 
   Users, 
   MapPin, 
@@ -21,13 +27,11 @@ import {
   WifiOff,
   Building2,
   BarChart3,
-  LogOut
+  LogOut,
+  FileText
 } from "lucide-react";
 import jusTrackLogo from "@/assets/justrack-logo.png";
 import { supabase } from "@/integrations/supabase/client";
-import EmployeeManagement from "@/components/EmployeeManagement";
-import LocationManagement from "@/components/LocationManagement";
-import DeviceManagement from "@/components/DeviceManagement";
 
 // Types for real-time data
 interface EmployeeStatus {
@@ -259,7 +263,7 @@ const AdminDashboard = () => {
       <main className="container mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <div className="flex items-center justify-center">
-            <TabsList className="grid w-full grid-cols-4 max-w-3xl h-12 bg-muted/30 border border-border/50 backdrop-blur-sm">
+            <TabsList className="grid w-full grid-cols-5 max-w-4xl h-12 bg-muted/30 border border-border/50 backdrop-blur-sm">
               <TabsTrigger 
                 value="dashboard" 
                 className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
@@ -287,6 +291,13 @@ const AdminDashboard = () => {
               >
                 <Monitor className="h-4 w-4" />
                 Devices
+              </TabsTrigger>
+              <TabsTrigger 
+                value="reports" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <FileText className="h-4 w-4" />
+                Reports
               </TabsTrigger>
             </TabsList>
           </div>
@@ -470,10 +481,32 @@ const AdminDashboard = () => {
           </TabsContent>
 
           {/* Devices Tab */}
-          <TabsContent value="devices" className="space-y-6">
-            <DeviceManagement />
-          </TabsContent>
-        </Tabs>
+        <TabsContent value="devices" className="space-y-6">
+          <DeviceManagement />
+        </TabsContent>
+
+        <TabsContent value="reports" className="space-y-6">
+          <Tabs defaultValue="analytics" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="analytics">Analytics</TabsTrigger>
+              <TabsTrigger value="attendance">Attendance Reports</TabsTrigger>
+              <TabsTrigger value="exits">Temporary Exits</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="analytics">
+              <AnalyticsDashboard />
+            </TabsContent>
+            
+            <TabsContent value="attendance">
+              <AttendanceReports />
+            </TabsContent>
+            
+            <TabsContent value="exits">
+              <TemporaryExitManagement />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+      </Tabs>
       </main>
     </div>
   );
