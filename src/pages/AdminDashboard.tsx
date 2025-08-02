@@ -26,6 +26,8 @@ import {
 import jusTrackLogo from "@/assets/justrack-logo.png";
 import { supabase } from "@/integrations/supabase/client";
 import EmployeeManagement from "@/components/EmployeeManagement";
+import LocationManagement from "@/components/LocationManagement";
+import DeviceManagement from "@/components/DeviceManagement";
 
 // Types for real-time data
 interface EmployeeStatus {
@@ -464,115 +466,12 @@ const AdminDashboard = () => {
 
           {/* Locations Tab */}
           <TabsContent value="locations" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground">Location Management</h2>
-                <p className="text-muted-foreground">Manage attendance locations and access points</p>
-              </div>
-              <Button variant="admin">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Location
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {locations.map((location) => (
-                <Card key={location.id} className="hover:shadow-elegant transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <MapPin className="h-5 w-5" />
-                        {location.location_name}
-                      </CardTitle>
-                      <Badge variant="outline" className="text-success border-success">
-                        Active
-                      </Badge>
-                    </div>
-                    <CardDescription>{location.address}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between mb-4">
-                      <div className="text-sm text-muted-foreground">
-                        Code: {location.location_code}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 bg-success rounded-full" />
-                        <span className="text-sm text-success">Online</span>
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <Button variant="outline" size="sm" className="flex-1">
-                        View Details
-                      </Button>
-                      <Button variant="outline" size="sm">
-                        <Settings className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <LocationManagement />
           </TabsContent>
 
           {/* Devices Tab */}
           <TabsContent value="devices" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground">Device Management</h2>
-                <p className="text-muted-foreground">Monitor and manage attendance kiosk devices</p>
-              </div>
-              <Button variant="admin">
-                <Plus className="h-4 w-4 mr-2" />
-                Register Device
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {devices.map((device) => (
-                <Card key={device.id} className="hover:shadow-elegant transition-shadow">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2 text-base">
-                        <Monitor className="h-5 w-5" />
-                        {device.device_name}
-                      </CardTitle>
-                      <Badge variant={device.is_online ? 'default' : 'destructive'}>
-                        {device.is_online ? (
-                          <div className="flex items-center gap-1">
-                            <Wifi className="h-3 w-3" />
-                            Online
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1">
-                            <WifiOff className="h-3 w-3" />
-                            Offline
-                          </div>
-                        )}
-                      </Badge>
-                    </div>
-                    <CardDescription>{device.locations?.location_name}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-3">
-                      <div className="text-sm text-muted-foreground">
-                        Code: {device.device_code}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Last seen: {device.last_heartbeat ? formatTimeAgo(device.last_heartbeat) : 'Never'}
-                      </div>
-                      <div className="flex gap-2">
-                        <Button variant="outline" size="sm" className="flex-1">
-                          Configure
-                        </Button>
-                        <Button variant="outline" size="sm">
-                          <Settings className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <DeviceManagement />
           </TabsContent>
         </Tabs>
       </main>
