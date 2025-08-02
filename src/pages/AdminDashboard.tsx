@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import EmployeeManagement from "@/components/EmployeeManagement";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ interface AttendanceEvent {
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [currentUser, setCurrentUser] = useState<any>(null);
   const [employeeStats, setEmployeeStats] = useState({
     total: 0,
     present: 0,
@@ -57,6 +59,22 @@ const AdminDashboard = () => {
   const [recentEvents, setRecentEvents] = useState<AttendanceEvent[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [devices, setDevices] = useState<any[]>([]);
+
+  // Load user info
+  useEffect(() => {
+    const loadUserInfo = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        const { data: adminUser } = await supabase
+          .from('admin_users')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        setCurrentUser(adminUser);
+      }
+    };
+    loadUserInfo();
+  }, []);
 
   // Load initial data
   useEffect(() => {
@@ -171,6 +189,15 @@ const AdminDashboard = () => {
     return time.toLocaleDateString();
   };
 
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      navigate('/admin/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-admin">
       {/* Admin Header */}
@@ -194,9 +221,14 @@ const AdminDashboard = () => {
                 Back to Home
               </Button>
               <div className="text-right">
-                <p className="text-sm font-medium text-foreground">Admin User</p>
+                <p className="text-sm font-medium text-foreground">
+                  {currentUser?.full_name || 'Admin User'}
+                </p>
                 <p className="text-xs text-muted-foreground">System Administrator</p>
               </div>
+              <Button variant="outline" onClick={handleLogout}>
+                Logout
+              </Button>
             </div>
           </div>
         </div>
@@ -350,52 +382,7 @@ const AdminDashboard = () => {
 
           {/* Employees Tab */}
           <TabsContent value="employees" className="space-y-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-2xl font-bold text-foreground">Employee Management</h2>
-                <p className="text-muted-foreground">Manage employee profiles and attendance data</p>
-              </div>
-              <Button variant="admin">
-                <Plus className="h-4 w-4 mr-2" />
-                Add Employee
-              </Button>
-            </div>
-
-            <Card>
-              <CardContent className="p-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {currentStatus.map((employee) => (
-                    <Card key={employee.employee_id} className="hover:shadow-elegant transition-shadow">
-                      <CardContent className="p-4">
-                        <div className="flex items-center justify-between mb-3">
-                          <div>
-                            <h3 className="font-semibold">{employee.full_name}</h3>
-                            <p className="text-sm text-muted-foreground">{employee.employee_code}</p>
-                          </div>
-                          <Badge variant={
-                            employee.current_status === 'clocked_in' ? 'default' : 
-                            employee.current_status === 'temporary_exit' ? 'secondary' : 'destructive'
-                          }>
-                            {employee.current_status === 'clocked_in' ? 'Present' : 
-                             employee.current_status === 'temporary_exit' ? 'Step Out' : 'Absent'}
-                          </Badge>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">{employee.department}</p>
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" className="flex-1">
-                            <Eye className="h-4 w-4 mr-1" />
-                            View
-                          </Button>
-                          <Button variant="outline" size="sm">
-                            <Settings className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
+            <EmployeeManagement />
           </TabsContent>
 
           {/* Locations Tab */}

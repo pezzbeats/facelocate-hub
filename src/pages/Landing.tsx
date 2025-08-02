@@ -109,7 +109,7 @@ const Landing = () => {
                 variant="admin" 
                 size="kiosk" 
                 className="w-full"
-                onClick={() => navigate('/admin')}
+                onClick={() => navigate('/admin/login')}
               >
                 Access Admin Dashboard
               </Button>
