@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search, Edit, Trash2, Camera } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Camera, User } from "lucide-react";
+import FaceRegistration from "./FaceRegistration";
 
 interface Employee {
   id: string;
@@ -31,6 +32,8 @@ const EmployeeManagement = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [showFaceRegistration, setShowFaceRegistration] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
@@ -197,6 +200,11 @@ const EmployeeManagement = () => {
         variant: "destructive"
       });
     }
+  };
+
+  const handleFaceRegistration = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setShowFaceRegistration(true);
   };
 
   const filteredEmployees = employees.filter(emp =>
@@ -374,8 +382,9 @@ const EmployeeManagement = () => {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => {/* TODO: Face registration */}}
+                        onClick={() => handleFaceRegistration(employee)}
                         disabled={!employee.is_active}
+                        title={employee.face_registered ? "Re-register face" : "Register face"}
                       >
                         <Camera className="h-4 w-4" />
                       </Button>
@@ -395,6 +404,24 @@ const EmployeeManagement = () => {
           </Table>
         </CardContent>
       </Card>
+
+      {/* Face Registration Modal */}
+      {showFaceRegistration && selectedEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <FaceRegistration
+            employee={selectedEmployee}
+            onComplete={() => {
+              setShowFaceRegistration(false);
+              setSelectedEmployee(null);
+              loadEmployees(); // Refresh the employee list
+            }}
+            onCancel={() => {
+              setShowFaceRegistration(false);
+              setSelectedEmployee(null);
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -1,10 +1,9 @@
 import { useState, useEffect } from "react";
-import EmployeeManagement from "@/components/EmployeeManagement";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useNavigate } from "react-router-dom";
 import { 
   Users, 
   MapPin, 
@@ -19,10 +18,14 @@ import {
   Home,
   Eye,
   Wifi,
-  WifiOff
+  WifiOff,
+  Building2,
+  BarChart3,
+  LogOut
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import jusTrackLogo from "@/assets/justrack-logo.png";
+import { supabase } from "@/integrations/supabase/client";
+import EmployeeManagement from "@/components/EmployeeManagement";
 
 // Types for real-time data
 interface EmployeeStatus {
