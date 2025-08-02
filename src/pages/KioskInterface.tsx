@@ -1,793 +1,568 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useNavigate } from "react-router-dom";
+import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { faceRecognitionService } from "@/services/FaceRecognitionService";
 import { 
   Camera, 
   MapPin, 
   Clock, 
   User, 
-  Settings,
-  Wifi,
-  WifiOff,
-  AlertCircle,
   CheckCircle2,
-  ArrowLeft
+  XCircle,
+  Loader2,
+  LogOut
 } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { supabase } from "@/integrations/supabase/client";
 import jusTrackLogo from "@/assets/justrack-logo.png";
 
-// Face recognition service types
-interface FaceRecognitionResult {
-  success: boolean;
-  employee?: any;
-  confidence?: number;
-  message?: string;
-}
-
-interface AttendanceAction {
-  action: string;
-  message: string;
-  location_change?: boolean;
-  previous_location?: string;
-  hours_worked?: number;
-  temp_exit_id?: string;
-}
-
 interface KioskState {
-  status: 'standby' | 'detecting' | 'recognizing' | 'confirming' | 'processing' | 'success' | 'error';
+  status: 'loading' | 'standby' | 'detecting' | 'recognizing' | 'confirming' | 'processing' | 'success' | 'error';
   currentEmployee: any | null;
-  attendanceAction: AttendanceAction | null;
+  attendanceAction: any | null;
   errorMessage: string | null;
-  lastEvents: any[];
   countdown: number;
 }
 
-// Camera hook
-const useKioskCamera = () => {
+interface DeviceInfo {
+  id: string;
+  device_name: string;
+  device_code: string;
+  location_id: string;
+  location_name: string;
+}
+
+const KioskInterface = () => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [cameraStatus, setCameraStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const { toast } = useToast();
 
-  const startCamera = async () => {
+  const [kioskState, setKioskState] = useState<KioskState>({
+    status: 'loading',
+    currentEmployee: null,
+    attendanceAction: null,
+    errorMessage: null,
+    countdown: 0
+  });
+
+  useEffect(() => {
+    initializeKiosk();
+    
+    // Update time every second
+    const timeInterval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+
+    return () => {
+      clearInterval(timeInterval);
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, []);
+
+  const initializeKiosk = async () => {
+    try {
+      // Check device registration
+      await checkDeviceRegistration();
+      
+      // Load face recognition models
+      try {
+        await faceRecognitionService.loadModels();
+        await faceRecognitionService.loadEmployeeDescriptors();
+      } catch (modelError) {
+        console.warn('Face recognition models failed to load, using fallback mode:', modelError);
+        toast({
+          title: "Limited Functionality",
+          description: "Face recognition disabled. Using manual mode.",
+          variant: "destructive"
+        });
+      }
+      
+      // Initialize camera
+      await initializeCamera();
+      
+      setKioskState(prev => ({ ...prev, status: 'standby' }));
+    } catch (error: any) {
+      setKioskState(prev => ({ 
+        ...prev, 
+        status: 'error', 
+        errorMessage: error.message 
+      }));
+    }
+  };
+
+  const checkDeviceRegistration = async () => {
+    // Generate device fingerprint
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.textBaseline = 'top';
+      ctx.font = '14px Arial';
+      ctx.fillText('Device fingerprint', 2, 2);
+    }
+    
+    const fingerprint = [
+      navigator.userAgent,
+      navigator.language,
+      screen.width + 'x' + screen.height,
+      new Date().getTimezoneOffset(),
+      canvas.toDataURL()
+    ].join('|');
+    
+    const deviceId = btoa(fingerprint).substring(0, 32);
+
+    const { data: device, error } = await supabase
+      .from('devices')
+      .select(`
+        *,
+        locations (
+          location_name,
+          location_code
+        )
+      `)
+      .eq('device_identifier', deviceId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error || !device) {
+      throw new Error('Device not registered. Please register this device first.');
+    }
+
+    setDeviceInfo({
+      id: device.id,
+      device_name: device.device_name,
+      device_code: device.device_code,
+      location_id: device.location_id,
+      location_name: device.locations.location_name
+    });
+
+    // Update device heartbeat
+    try {
+      await supabase
+        .from('device_heartbeats')
+        .insert({
+          device_id: device.id,
+          status: 'online',
+          camera_status: 'working',
+          network_status: 'connected'
+        });
+    } catch (heartbeatError) {
+      console.warn('Failed to update device heartbeat:', heartbeatError);
+    }
+  };
+
+  const initializeCamera = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
           height: { ideal: 720 },
-          facingMode: 'user',
-          frameRate: { ideal: 30 }
+          facingMode: 'user'
         },
         audio: false
       });
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         setStream(mediaStream);
         setCameraStatus('ready');
+        startFaceRecognitionLoop();
       }
     } catch (error) {
       console.error('Camera access error:', error);
       setCameraStatus('error');
+      throw new Error('Camera access denied. Please allow camera access.');
     }
   };
 
-  const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop());
-      setStream(null);
-    }
-  };
+  const startFaceRecognitionLoop = () => {
+    let recognitionInterval: NodeJS.Timeout;
 
-  useEffect(() => {
-    return () => stopCamera();
-  }, []);
+    const recognitionLoop = async () => {
+      if (kioskState.status !== 'standby' || !videoRef.current) return;
 
-  return { videoRef, cameraStatus, startCamera, stopCamera };
-};
-
-// Device management
-const useDeviceInfo = () => {
-  const [deviceInfo, setDeviceInfo] = useState({
-    deviceId: '',
-    name: '',
-    location: '',
-    locationId: '',
-    isOnline: true
-  });
-
-  useEffect(() => {
-    const loadDeviceInfo = () => {
-      const savedDeviceId = localStorage.getItem('justrack_device_id');
-      const savedName = localStorage.getItem('justrack_device_name');
-      const savedLocation = localStorage.getItem('justrack_device_location');
-      const savedLocationId = localStorage.getItem('justrack_device_location_id');
-      
-      setDeviceInfo({
-        deviceId: savedDeviceId || '',
-        name: savedName || 'Kiosk Device',
-        location: savedLocation || 'Unknown Location',
-        locationId: savedLocationId || '',
-        isOnline: true
-      });
+      try {
+        setKioskState(prev => ({ ...prev, status: 'detecting' }));
+        
+        // Try face recognition if service is available
+        try {
+          const detection = await faceRecognitionService.detectFace(videoRef.current);
+          
+          if (detection) {
+            const quality = faceRecognitionService.assessFaceQuality(detection);
+            
+            if (quality.isGood) {
+              setKioskState(prev => ({ ...prev, status: 'recognizing' }));
+              
+              const recognition = await faceRecognitionService.recognizeEmployee(detection);
+              
+              if (recognition && recognition.confidence > 0.85) {
+                await handleEmployeeRecognized(recognition.employee, recognition.confidence);
+                return;
+              } else {
+                setKioskState(prev => ({ 
+                  ...prev, 
+                  status: 'error',
+                  errorMessage: 'Face not recognized. Please try again or contact admin.'
+                }));
+                setTimeout(() => {
+                  setKioskState(prev => ({ ...prev, status: 'standby', errorMessage: null }));
+                }, 3000);
+                return;
+              }
+            }
+          }
+        } catch (faceError) {
+          console.warn('Face recognition error, falling back to manual mode:', faceError);
+        }
+        
+        // Reset to standby if no face detected
+        setKioskState(prev => {
+          if (prev.status === 'detecting') {
+            return { ...prev, status: 'standby' };
+          }
+          return prev;
+        });
+      } catch (error) {
+        console.error('Recognition loop error:', error);
+        setKioskState(prev => ({ 
+          ...prev, 
+          status: 'error',
+          errorMessage: 'Recognition error. Please try again.'
+        }));
+        setTimeout(() => {
+          setKioskState(prev => ({ ...prev, status: 'standby', errorMessage: null }));
+        }, 3000);
+      }
     };
 
-    loadDeviceInfo();
-  }, []);
-
-  return deviceInfo;
-};
-
-// Simulated face recognition (will be replaced with actual face-api.js)
-const useFaceRecognition = () => {
-  const recognizeFace = async (videoElement: HTMLVideoElement): Promise<FaceRecognitionResult> => {
-    // Simulate face recognition delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    recognitionInterval = setInterval(recognitionLoop, 2000);
     
-    // For demo: simulate finding an employee 50% of the time
-    if (Math.random() > 0.5) {
-      return {
-        success: true,
-        employee: {
-          id: 'demo-employee-1',
-          employee_code: 'EMP001',
-          full_name: 'John Demo',
-          department: 'Engineering'
-        },
-        confidence: 0.95,
-        message: 'Face recognized successfully'
-      };
-    }
-    
-    return {
-      success: false,
-      message: 'Face not recognized. Please try again.'
+    return () => {
+      if (recognitionInterval) {
+        clearInterval(recognitionInterval);
+      }
     };
   };
 
-  return { recognizeFace };
-};
-
-// Attendance service
-const useAttendanceService = () => {
-  const determineAction = async (employeeId: string, locationId: string): Promise<any> => {
+  const handleEmployeeRecognized = async (employee: any, confidence: number) => {
     try {
-      const { data, error } = await supabase.rpc('determine_attendance_action', {
-        emp_id: employeeId,
-        current_location_id: locationId
+      // Determine attendance action
+      const { data: actionData, error: actionError } = await supabase.rpc('determine_attendance_action', {
+        emp_id: employee.id,
+        current_location_id: deviceInfo?.location_id
       });
 
-      if (error) throw error;
-      return data as unknown as AttendanceAction;
-    } catch (error) {
-      console.error('Error determining attendance action:', error);
-      return {
-        action: 'clock_in',
-        message: 'Welcome! Please clock in to start your day.'
-      };
-    }
-  };
+      if (actionError) throw actionError;
 
-  const processAction = async (
-    employeeId: string,
-    locationId: string,
-    deviceId: string,
-    actionType: string,
-    confidenceScore: number = 0.95,
-    notes?: string
-  ) => {
-    try {
-      const { data, error } = await supabase.rpc('process_attendance_action', {
-        emp_id: employeeId,
-        location_id: locationId,
-        device_id: deviceId,
-        action_type: actionType,
-        confidence_score: confidenceScore,
-        notes
-      });
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      console.error('Error processing attendance action:', error);
-      throw error;
-    }
-  };
-
-  return { determineAction, processAction };
-};
-
-// Main kiosk state management
-const useKioskState = (deviceInfo: any) => {
-  const [state, setState] = useState<KioskState>({
-    status: 'standby',
-    currentEmployee: null,
-    attendanceAction: null,
-    errorMessage: null,
-    lastEvents: [],
-    countdown: 0
-  });
-  
-  const { toast } = useToast();
-  const attendanceService = useAttendanceService();
-
-  const handleFaceDetected = async (employee: any) => {
-    setState(prev => ({ 
-      ...prev, 
-      status: 'recognizing', 
-      currentEmployee: employee 
-    }));
-
-    try {
-      const action = await attendanceService.determineAction(
-        employee.id, 
-        deviceInfo.locationId
-      );
-      
-      setState(prev => ({ 
-        ...prev, 
-        attendanceAction: action as AttendanceAction,
+      setKioskState(prev => ({
+        ...prev,
         status: 'confirming',
+        currentEmployee: employee,
+        attendanceAction: actionData,
         countdown: 5
       }));
-      
-    } catch (error) {
-      setState(prev => ({ 
+
+      // Auto-confirm after countdown or wait for user action
+      const countdownInterval = setInterval(() => {
+        setKioskState(prev => {
+          if (prev.countdown <= 1) {
+            clearInterval(countdownInterval);
+            if ((actionData as any)?.action !== 'location_transfer') {
+              processAttendanceAction(employee, actionData, confidence);
+            }
+            return { ...prev, countdown: 0 };
+          }
+          return { ...prev, countdown: prev.countdown - 1 };
+        });
+      }, 1000);
+
+    } catch (error: any) {
+      setKioskState(prev => ({ 
         ...prev, 
         status: 'error',
-        errorMessage: 'Failed to determine action. Please try again.'
+        errorMessage: error.message
       }));
     }
   };
 
-  const confirmAction = async () => {
-    if (!state.currentEmployee || !state.attendanceAction) return;
-
-    setState(prev => ({ ...prev, status: 'processing' }));
-
+  const processAttendanceAction = async (employee: any, action: any, confidence: number) => {
     try {
-      const result = await attendanceService.processAction(
-        state.currentEmployee.id,
-        deviceInfo.locationId,
-        deviceInfo.deviceId,
-        state.attendanceAction.action,
-        0.95
-      );
+      setKioskState(prev => ({ ...prev, status: 'processing' }));
 
-      setState(prev => ({ 
-        ...prev, 
-        status: 'success'
-      }));
-
-      toast({
-        title: "Success!",
-        description: "Attendance recorded successfully",
-        duration: 3000,
+      const { data: result, error } = await supabase.rpc('process_attendance_action', {
+        emp_id: employee.id,
+        location_id: deviceInfo?.location_id,
+        device_id: deviceInfo?.id,
+        action_type: action.action,
+        confidence_score: confidence,
+        notes: action.notes || null
       });
+
+      if (error) throw error;
+
+      setKioskState(prev => ({
+        ...prev,
+        status: 'success',
+        attendanceAction: { ...action, result }
+      }));
 
       // Return to standby after 3 seconds
       setTimeout(() => {
-        setState({
+        setKioskState({
           status: 'standby',
           currentEmployee: null,
           attendanceAction: null,
           errorMessage: null,
-          lastEvents: [],
           countdown: 0
         });
       }, 3000);
 
-    } catch (error) {
-      setState(prev => ({ 
+    } catch (error: any) {
+      setKioskState(prev => ({ 
         ...prev, 
         status: 'error',
-        errorMessage: 'Failed to process attendance. Please try again.'
+        errorMessage: error.message
       }));
-      
-      toast({
-        title: "Error",
-        description: "Failed to process attendance. Please try again.",
-        variant: "destructive",
-      });
     }
   };
 
-  const resetToStandby = () => {
-    setState({
+  const confirmAction = () => {
+    if (kioskState.currentEmployee && kioskState.attendanceAction) {
+      processAttendanceAction(
+        kioskState.currentEmployee, 
+        kioskState.attendanceAction, 
+        0.95
+      );
+    }
+  };
+
+  const cancelAction = () => {
+    setKioskState({
       status: 'standby',
       currentEmployee: null,
       attendanceAction: null,
       errorMessage: null,
-      lastEvents: [],
       countdown: 0
     });
   };
 
-  return { state, handleFaceDetected, confirmAction, resetToStandby };
-};
+  // Manual employee selection for fallback
+  const handleManualMode = () => {
+    window.location.href = '/kiosk/manual';
+  };
 
-// Kiosk Header Component
-const KioskHeader: React.FC<{ deviceInfo: any; onSettings: () => void }> = ({ 
-  deviceInfo, 
-  onSettings 
-}) => {
-  const [currentTime, setCurrentTime] = useState(new Date());
-
-  useEffect(() => {
-    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <header className="bg-card/95 backdrop-blur-sm border-b border-border shadow-elegant">
-      <div className="container mx-auto px-6 py-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <img src={jusTrackLogo} alt="JusTrack" className="h-10 w-auto" />
-            <div>
-              <h1 className="text-2xl font-bold text-foreground">JusTrack Kiosk</h1>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <MapPin className="h-4 w-4" />
-                <span>{deviceInfo.location}</span>
-              </div>
-            </div>
+  // Render different states
+  const renderContent = () => {
+    switch (kioskState.status) {
+      case 'loading':
+        return (
+          <div className="text-center">
+            <Loader2 className="h-16 w-16 animate-spin mx-auto mb-4 text-primary" />
+            <h2 className="text-2xl font-bold mb-2">Initializing System</h2>
+            <p className="text-muted-foreground">Loading face recognition models...</p>
           </div>
-          <div className="flex items-center gap-6">
-            <div className="text-right">
-              <p className="text-lg font-semibold text-foreground">
-                {currentTime.toLocaleTimeString()}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                {currentTime.toLocaleDateString()}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 text-sm">
-              {deviceInfo.isOnline ? (
-                <>
-                  <Wifi className="h-4 w-4 text-success" />
-                  <span className="text-success font-medium">Online</span>
-                </>
-              ) : (
-                <>
-                  <WifiOff className="h-4 w-4 text-destructive" />
-                  <span className="text-destructive font-medium">Offline</span>
-                </>
-              )}
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={onSettings}
-              className="shrink-0"
-            >
-              <Settings className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </div>
-    </header>
-  );
-};
+        );
 
-// Standby Screen Component
-const StandbyScreen: React.FC<{
-  videoRef: React.RefObject<HTMLVideoElement>;
-  cameraStatus: string;
-  onFaceDetected: (employee: any) => void;
-}> = ({ videoRef, cameraStatus, onFaceDetected }) => {
-  const faceRecognition = useFaceRecognition();
-  const [isScanning, setIsScanning] = useState(false);
-
-  // Simulate face scanning every 2 seconds when camera is ready
-  useEffect(() => {
-    if (cameraStatus !== 'ready' || isScanning) return;
-
-    const scanInterval = setInterval(async () => {
-      if (videoRef.current && !isScanning) {
-        setIsScanning(true);
-        const result = await faceRecognition.recognizeFace(videoRef.current);
-        if (result.success && result.employee) {
-          onFaceDetected(result.employee);
-        }
-        setIsScanning(false);
-      }
-    }, 2000);
-
-    return () => clearInterval(scanInterval);
-  }, [cameraStatus, isScanning, onFaceDetected]);
-
-  return (
-    <div className="flex-1 flex flex-col items-center justify-center p-8 space-y-8">
-      {/* Camera Section */}
-      <div className="relative">
-        <Card className="w-[600px] h-[400px] overflow-hidden border-2 border-primary/20 shadow-kiosk">
-          <CardContent className="p-0 h-full relative">
-            {cameraStatus === 'ready' ? (
-              <>
-                <video
-                  ref={videoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-                {/* Face detection overlay */}
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                  <div className="relative">
-                    <div className="w-48 h-48 border-4 border-primary/60 rounded-lg animate-pulse">
-                      <div className="absolute -top-2 -left-2 w-6 h-6 border-t-4 border-l-4 border-primary"></div>
-                      <div className="absolute -top-2 -right-2 w-6 h-6 border-t-4 border-r-4 border-primary"></div>
-                      <div className="absolute -bottom-2 -left-2 w-6 h-6 border-b-4 border-l-4 border-primary"></div>
-                      <div className="absolute -bottom-2 -right-2 w-6 h-6 border-b-4 border-r-4 border-primary"></div>
-                    </div>
-                    {isScanning && (
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-2 h-48 bg-primary/60 animate-pulse"></div>
-                      </div>
-                    )}
+      case 'standby':
+      case 'detecting':
+        return (
+          <div className="text-center">
+            <div className="relative mb-6">
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className="w-full max-w-md mx-auto rounded-lg border-4 border-primary"
+              />
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="border-2 border-white rounded-lg w-48 h-48 flex items-center justify-center">
+                  <div className="text-white text-center">
+                    <Camera className="h-8 w-8 mx-auto mb-2" />
+                    <p>Position your face here</p>
                   </div>
                 </div>
-                {/* Status indicator */}
-                <div className="absolute top-4 right-4 flex items-center gap-2 bg-card/90 px-3 py-2 rounded-lg">
-                  <div className="h-3 w-3 bg-success rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium">
-                    {isScanning ? 'Scanning...' : 'Ready'}
-                  </span>
-                </div>
-              </>
-            ) : (
-              <div className="w-full h-full flex items-center justify-center bg-muted">
-                <div className="text-center">
-                  {cameraStatus === 'loading' ? (
-                    <>
-                      <Camera className="h-16 w-16 text-primary mx-auto mb-4 animate-pulse" />
-                      <p className="text-lg font-medium">Initializing camera...</p>
-                    </>
-                  ) : (
-                    <>
-                      <AlertCircle className="h-16 w-16 text-destructive mx-auto mb-4" />
-                      <p className="text-lg font-medium text-destructive">Camera not available</p>
-                      <p className="text-sm text-muted-foreground mt-2">Please check camera permissions</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Instructions */}
-      <div className="text-center space-y-4">
-        <h2 className="text-5xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-          Face Recognition Attendance
-        </h2>
-        <p className="text-xl text-muted-foreground max-w-2xl">
-          Position your face within the guide box and look directly at the camera for recognition
-        </p>
-        <div className="flex items-center justify-center gap-2 text-success">
-          <CheckCircle2 className="h-5 w-5" />
-          <span className="font-medium">System Ready</span>
-        </div>
-      </div>
-
-      {/* Quick Instructions */}
-      <Card className="max-w-md bg-muted/30 border-muted">
-        <CardContent className="pt-6">
-          <h3 className="font-semibold mb-3 text-center">For Best Results:</h3>
-          <div className="space-y-2 text-sm text-muted-foreground">
-            <p>• Stand directly in front of the camera</p>
-            <p>• Remove glasses or hats if possible</p>
-            <p>• Ensure good lighting on your face</p>
-            <p>• Wait for the green confirmation</p>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-// Recognition Screen Component
-const RecognitionScreen: React.FC<{ employee: any }> = ({ employee }) => {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <Card className="max-w-md w-full text-center shadow-kiosk">
-        <CardContent className="pt-8 pb-6">
-          <div className="space-y-6">
-            <div className="relative">
-              <div className="w-24 h-24 bg-gradient-primary rounded-full mx-auto flex items-center justify-center">
-                <User className="h-12 w-12 text-primary-foreground" />
-              </div>
-              <div className="absolute -bottom-2 -right-2 bg-success rounded-full p-2">
-                <CheckCircle2 className="h-4 w-4 text-white" />
               </div>
             </div>
-            
-            <div>
-              <h3 className="text-2xl font-bold text-foreground mb-2">
-                {employee.full_name}
-              </h3>
-              <p className="text-muted-foreground">{employee.employee_code}</p>
-              <p className="text-sm text-muted-foreground">{employee.department}</p>
-            </div>
-            
-            <div className="flex items-center justify-center gap-2 text-success">
-              <CheckCircle2 className="h-5 w-5" />
-              <span className="font-medium">Face Recognized Successfully</span>
-            </div>
-            
-            <div className="space-y-2">
-              <div className="animate-pulse">
-                <div className="h-2 bg-primary/20 rounded-full">
-                  <div className="h-2 bg-primary rounded-full animate-[loading_2s_ease-in-out_infinite]"></div>
-                </div>
-              </div>
-              <p className="text-sm text-muted-foreground">Determining attendance action...</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
-
-// Confirmation Screen Component
-const ConfirmationScreen: React.FC<{
-  employee: any;
-  action: AttendanceAction;
-  countdown: number;
-  onConfirm: () => void;
-  onCancel: () => void;
-}> = ({ employee, action, countdown, onConfirm, onCancel }) => {
-  const getActionColor = (actionType: string) => {
-    switch (actionType) {
-      case 'clock_in': return 'success';
-      case 'clock_out': return 'primary';
-      case 'location_transfer': return 'warning';
-      case 'temp_return': return 'success';
-      default: return 'primary';
-    }
-  };
-
-  const getActionIcon = (actionType: string) => {
-    switch (actionType) {
-      case 'clock_in': return CheckCircle2;
-      case 'clock_out': return Clock;
-      case 'location_transfer': return ArrowLeft;
-      case 'temp_return': return CheckCircle2;
-      default: return Clock;
-    }
-  };
-
-  const ActionIcon = getActionIcon(action.action);
-
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <Card className="max-w-lg w-full shadow-kiosk">
-        <CardHeader className="text-center">
-          <div className="w-16 h-16 bg-gradient-primary rounded-full mx-auto flex items-center justify-center mb-4">
-            <ActionIcon className="h-8 w-8 text-primary-foreground" />
-          </div>
-          <CardTitle className="text-2xl">{employee.full_name}</CardTitle>
-          <CardDescription className="text-base">{employee.employee_code} • {employee.department}</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="text-center space-y-2">
-            <Badge variant="outline" className={`text-${getActionColor(action.action)} border-${getActionColor(action.action)}`}>
-              {action.action.replace('_', ' ').toUpperCase()}
-            </Badge>
-            <p className="text-lg font-medium">{action.message}</p>
-            {action.location_change && (
-              <p className="text-sm text-muted-foreground">
-                Previous location: {action.previous_location}
-              </p>
-            )}
-            {action.hours_worked && (
-              <p className="text-sm text-muted-foreground">
-                Hours worked: {action.hours_worked.toFixed(1)}
-              </p>
-            )}
-          </div>
-
-          <div className="flex gap-4">
+            <h2 className="text-3xl font-bold mb-2">Show Your Face</h2>
+            <p className="text-xl text-muted-foreground mb-6">
+              {kioskState.status === 'detecting' ? 'Detecting face...' : 'Look at the camera to clock in/out'}
+            </p>
             <Button 
               variant="outline" 
-              className="flex-1" 
-              onClick={onCancel}
+              onClick={handleManualMode}
+              className="mt-4"
             >
-              Cancel
-            </Button>
-            <Button 
-              variant="admin" 
-              className="flex-1" 
-              onClick={onConfirm}
-            >
-              Confirm {action.action === 'location_transfer' ? 'Transfer' : action.action.replace('_', ' ')}
-              {countdown > 0 && ` (${countdown})`}
+              Use Manual Mode
             </Button>
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
+        );
 
-// Processing Screen Component
-const ProcessingScreen: React.FC = () => {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <Card className="max-w-md w-full text-center shadow-kiosk">
-        <CardContent className="pt-8 pb-6">
-          <div className="space-y-6">
-            <div className="w-16 h-16 bg-primary/10 rounded-full mx-auto flex items-center justify-center">
-              <Clock className="h-8 w-8 text-primary animate-pulse" />
-            </div>
-            <div>
-              <h3 className="text-xl font-semibold mb-2">Processing...</h3>
-              <p className="text-muted-foreground">Recording your attendance</p>
-            </div>
-            <div className="space-y-2">
-              <div className="animate-pulse">
-                <div className="h-2 bg-primary/20 rounded-full">
-                  <div className="h-2 bg-primary rounded-full animate-[loading_1s_ease-in-out_infinite]"></div>
-                </div>
+      case 'recognizing':
+        return (
+          <div className="text-center">
+            <Loader2 className="h-16 w-16 animate-spin mx-auto mb-4 text-primary" />
+            <h2 className="text-2xl font-bold mb-2">Recognizing Face</h2>
+            <p className="text-muted-foreground">Please wait...</p>
+          </div>
+        );
+
+      case 'confirming':
+        return (
+          <div className="text-center space-y-6">
+            <div className="flex items-center justify-center gap-4">
+              <User className="h-16 w-16 text-primary" />
+              <div className="text-left">
+                <h2 className="text-2xl font-bold">{kioskState.currentEmployee?.full_name}</h2>
+                <p className="text-muted-foreground">{kioskState.currentEmployee?.employee_code}</p>
               </div>
             </div>
+            
+            <Card className="max-w-md mx-auto">
+              <CardContent className="pt-6">
+                <h3 className="text-lg font-medium mb-2">{kioskState.attendanceAction?.message}</h3>
+                {kioskState.attendanceAction?.action === 'location_transfer' ? (
+                  <div className="space-y-4">
+                    <p className="text-sm text-muted-foreground">
+                      Transfer from {kioskState.attendanceAction.previous_location} to {deviceInfo?.location_name}?
+                    </p>
+                    <div className="flex gap-2">
+                      <Button onClick={confirmAction} className="flex-1">
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Confirm Transfer
+                      </Button>
+                      <Button variant="outline" onClick={cancelAction} className="flex-1">
+                        <XCircle className="mr-2 h-4 w-4" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Auto-confirming in {kioskState.countdown} seconds...
+                    </p>
+                    <Button onClick={confirmAction} className="w-full">
+                      Confirm Now
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
+        );
 
-// Success Screen Component  
-const SuccessScreen: React.FC<{ employee: any; action: AttendanceAction }> = ({ employee, action }) => {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <Card className="max-w-md w-full text-center shadow-kiosk bg-gradient-to-br from-success/5 to-success/10 border-success/20">
-        <CardContent className="pt-8 pb-6">
-          <div className="space-y-6">
-            <div className="w-20 h-20 bg-gradient-success rounded-full mx-auto flex items-center justify-center">
-              <CheckCircle2 className="h-10 w-10 text-white" />
-            </div>
+      case 'processing':
+        return (
+          <div className="text-center">
+            <Loader2 className="h-16 w-16 animate-spin mx-auto mb-4 text-primary" />
+            <h2 className="text-2xl font-bold mb-2">Processing</h2>
+            <p className="text-muted-foreground">Recording attendance...</p>
+          </div>
+        );
+
+      case 'success':
+        return (
+          <div className="text-center space-y-6">
+            <CheckCircle2 className="h-20 w-20 text-success mx-auto" />
             <div>
-              <h3 className="text-2xl font-bold text-success mb-2">Success!</h3>
-              <p className="text-lg font-medium">{employee.full_name}</p>
-              <p className="text-muted-foreground">{action.message}</p>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              <p>Time: {new Date().toLocaleTimeString()}</p>
-              <p>Returning to main screen...</p>
+              <h2 className="text-2xl font-bold text-success mb-2">Success!</h2>
+              <p className="text-lg">{kioskState.attendanceAction?.result?.message}</p>
+              <p className="text-sm text-muted-foreground mt-2">
+                {currentTime.toLocaleTimeString()}
+              </p>
             </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
+        );
 
-// Error Screen Component
-const ErrorScreen: React.FC<{ message: string; onRetry: () => void }> = ({ message, onRetry }) => {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <Card className="max-w-md w-full text-center shadow-kiosk bg-destructive/5 border-destructive/20">
-        <CardContent className="pt-8 pb-6">
-          <div className="space-y-6">
-            <div className="w-16 h-16 bg-destructive/10 rounded-full mx-auto flex items-center justify-center">
-              <AlertCircle className="h-8 w-8 text-destructive" />
-            </div>
+      case 'error':
+        return (
+          <div className="text-center space-y-6">
+            <XCircle className="h-20 w-20 text-destructive mx-auto" />
             <div>
-              <h3 className="text-xl font-semibold text-destructive mb-2">Error</h3>
-              <p className="text-muted-foreground">{message}</p>
+              <h2 className="text-2xl font-bold text-destructive mb-2">Error</h2>
+              <p className="text-lg">{kioskState.errorMessage}</p>
             </div>
-            <Button onClick={onRetry} variant="outline" className="w-full">
-              Try Again
-            </Button>
+            <div className="flex gap-2 justify-center">
+              <Button onClick={() => setKioskState(prev => ({ ...prev, status: 'standby', errorMessage: null }))}>
+                Try Again
+              </Button>
+              <Button variant="outline" onClick={handleManualMode}>
+                Manual Mode
+              </Button>
+            </div>
           </div>
-        </CardContent>
-      </Card>
-    </div>
-  );
-};
+        );
 
-// Main Kiosk Component
-const KioskInterface: React.FC = () => {
-  const navigate = useNavigate();
-  const deviceInfo = useDeviceInfo();
-  const { videoRef, cameraStatus, startCamera } = useKioskCamera();
-  const { state, handleFaceDetected, confirmAction, resetToStandby } = useKioskState(deviceInfo);
-
-  // Check device registration
-  useEffect(() => {
-    if (!deviceInfo.deviceId || !deviceInfo.locationId) {
-      navigate('/kiosk/register');
-      return;
+      default:
+        return null;
     }
-    
-    startCamera();
-  }, [deviceInfo.deviceId, deviceInfo.locationId, navigate]);
+  };
 
-  // Auto-confirm countdown
-  useEffect(() => {
-    if (state.status === 'confirming' && state.countdown > 0) {
-      const timer = setTimeout(() => {
-        if (state.countdown === 1 && state.attendanceAction?.action !== 'location_transfer') {
-          confirmAction();
-        } else {
-          // Update countdown (would need state management for this)
-        }
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [state.status, state.countdown, state.attendanceAction?.action]);
-
-  if (!deviceInfo.deviceId) {
+  if (cameraStatus === 'error') {
     return (
-      <div className="min-h-screen bg-gradient-kiosk flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Checking device registration...</p>
-        </div>
+      <div className="min-h-screen bg-gradient-kiosk flex items-center justify-center p-6">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center">
+            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+            <CardTitle>Camera Access Required</CardTitle>
+            <CardDescription>
+              Please allow camera access for face recognition
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center space-y-4">
+            <Button onClick={initializeCamera} className="mr-2">
+              <Camera className="mr-2 h-4 w-4" />
+              Enable Camera
+            </Button>
+            <Button variant="outline" onClick={handleManualMode}>
+              Use Manual Mode
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-gradient-kiosk flex flex-col">
-      <KioskHeader 
-        deviceInfo={deviceInfo} 
-        onSettings={() => navigate('/kiosk/register')} 
-      />
-      
-      <main className="flex-1 flex flex-col">
-        {state.status === 'standby' && (
-          <StandbyScreen 
-            videoRef={videoRef}
-            cameraStatus={cameraStatus}
-            onFaceDetected={handleFaceDetected}
-          />
-        )}
-        
-        {state.status === 'recognizing' && (
-          <RecognitionScreen employee={state.currentEmployee} />
-        )}
-        
-        {state.status === 'confirming' && state.currentEmployee && state.attendanceAction && (
-          <ConfirmationScreen 
-            employee={state.currentEmployee}
-            action={state.attendanceAction}
-            countdown={state.countdown}
-            onConfirm={confirmAction}
-            onCancel={resetToStandby}
-          />
-        )}
-        
-        {state.status === 'processing' && (
-          <ProcessingScreen />
-        )}
-        
-        {state.status === 'success' && state.currentEmployee && state.attendanceAction && (
-          <SuccessScreen 
-            employee={state.currentEmployee}
-            action={state.attendanceAction}
-          />
-        )}
-        
-        {state.status === 'error' && (
-          <ErrorScreen 
-            message={state.errorMessage || 'An error occurred'}
-            onRetry={resetToStandby}
-          />
-        )}
-      </main>
-      
-      {/* Footer */}
-      <footer className="bg-card/95 backdrop-blur-sm border-t border-border py-4">
-        <div className="container mx-auto px-6 text-center text-sm text-muted-foreground">
-          <p>Powered by Shatak Infotech • JusTrack Simplified v1.0</p>
+      {/* Header */}
+      <header className="bg-card border-b border-border shadow-elegant p-6">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-4">
+            <img src={jusTrackLogo} alt="JusTrack" className="h-10 w-auto" />
+            <div>
+              <h1 className="text-2xl font-bold text-foreground">JusTrack Kiosk</h1>
+              <p className="text-sm text-muted-foreground">
+                {deviceInfo?.location_name} • {deviceInfo?.device_name}
+              </p>
+            </div>
+          </div>
+          <div className="text-right">
+            <p className="text-2xl font-bold">{currentTime.toLocaleTimeString()}</p>
+            <p className="text-sm text-muted-foreground">{currentTime.toLocaleDateString()}</p>
+          </div>
         </div>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-2xl">
+          {renderContent()}
+        </div>
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-card border-t border-border p-4 text-center">
+        <p className="text-sm text-muted-foreground">
+          Powered by Shatak Infotech • JusTrack Simplified v1.0
+        </p>
       </footer>
     </div>
   );
