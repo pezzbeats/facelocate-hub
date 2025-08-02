@@ -539,6 +539,10 @@ export type Database = {
       }
     }
     Functions: {
+      admin_users_table_is_empty: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       determine_attendance_action: {
         Args: { emp_id: string; current_location_id: string }
         Returns: Json

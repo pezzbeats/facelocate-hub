@@ -90,7 +90,7 @@ const Setup = () => {
         .from('admin_users')
         .select('id')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       // Insert admin user record only if it doesn't exist
       if (!existingAdmin) {
@@ -111,7 +111,7 @@ const Setup = () => {
         .from('system_config')
         .select('id')
         .eq('config_key', 'company_name')
-        .single();
+        .maybeSingle();
 
       if (existingConfig) {
         const { error: updateError } = await supabase
