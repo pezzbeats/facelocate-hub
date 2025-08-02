@@ -103,6 +103,13 @@ export type Database = {
             foreignKeyName: "attendance_events_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_current_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "attendance_events_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
@@ -323,6 +330,13 @@ export type Database = {
             foreignKeyName: "face_registration_logs_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_current_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "face_registration_logs_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
@@ -465,6 +479,13 @@ export type Database = {
             foreignKeyName: "temporary_exits_employee_id_fkey"
             columns: ["employee_id"]
             isOneToOne: false
+            referencedRelation: "employee_current_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "temporary_exits_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
             referencedRelation: "employees"
             referencedColumns: ["id"]
           },
@@ -493,10 +514,56 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      employee_current_status: {
+        Row: {
+          current_location_id: string | null
+          current_location_name: string | null
+          current_status: string | null
+          department: string | null
+          employee_code: string | null
+          employee_id: string | null
+          face_image_url: string | null
+          full_name: string | null
+          last_activity: string | null
+          last_event_type: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_events_location_id_fkey"
+            columns: ["current_location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
-      [_ in never]: never
+      determine_attendance_action: {
+        Args: { emp_id: string; current_location_id: string }
+        Returns: Json
+      }
+      process_attendance_action: {
+        Args: {
+          emp_id: string
+          location_id: string
+          device_id: string
+          action_type: string
+          confidence_score?: number
+          notes?: string
+          temp_exit_id?: string
+        }
+        Returns: Json
+      }
+      register_device: {
+        Args: {
+          device_name: string
+          device_code: string
+          device_identifier: string
+          location_id: string
+        }
+        Returns: Json
+      }
     }
     Enums: {
       [_ in never]: never
