@@ -202,35 +202,52 @@ const AdminDashboard = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-admin">
+    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-accent/10">
       {/* Admin Header */}
-      <header className="bg-card border-b border-border shadow-elegant">
+      <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-lg border-b border-border/50 shadow-elegant">
         <div className="container mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-4">
-              <img src={jusTrackLogo} alt="JusTrack" className="h-10 w-auto" />
+              <div className="w-10 h-10 rounded-xl bg-gradient-primary p-2 shadow-glow">
+                <img src={jusTrackLogo} alt="JusTrack" className="w-full h-full object-contain filter brightness-0 invert" />
+              </div>
               <div>
-                <h1 className="text-2xl font-bold text-foreground">JusTrack Admin</h1>
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+                  JusTrack Admin
+                </h1>
                 <p className="text-sm text-muted-foreground">Management Dashboard</p>
               </div>
             </div>
             <div className="flex items-center gap-4">
               <Button 
-                variant="outline" 
+                variant="ghost" 
                 size="sm"
                 onClick={() => navigate('/')}
+                className="text-muted-foreground hover:text-foreground"
               >
                 <Home className="h-4 w-4 mr-2" />
-                Back to Home
+                Home
               </Button>
-              <div className="text-right">
-                <p className="text-sm font-medium text-foreground">
-                  {currentUser?.full_name || 'Admin User'}
-                </p>
-                <p className="text-xs text-muted-foreground">System Administrator</p>
+              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/30 border border-border/50">
+                <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
+                  <span className="text-sm font-medium text-primary-foreground">
+                    {currentUser?.full_name?.charAt(0) || 'A'}
+                  </span>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-medium text-foreground">
+                    {currentUser?.full_name || 'Admin User'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Administrator</p>
+                </div>
               </div>
-              <Button variant="outline" onClick={handleLogout}>
-                Logout
+              <Button 
+                variant="outline" 
+                onClick={handleLogout}
+                className="hover:bg-destructive hover:text-destructive-foreground border-border/50"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
               </Button>
             </div>
           </div>
@@ -238,111 +255,155 @@ const AdminDashboard = () => {
       </header>
 
       <main className="container mx-auto px-6 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 max-w-2xl">
-            <TabsTrigger value="dashboard" className="flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Dashboard
-            </TabsTrigger>
-            <TabsTrigger value="employees" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Employees
-            </TabsTrigger>
-            <TabsTrigger value="locations" className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              Locations
-            </TabsTrigger>
-            <TabsTrigger value="devices" className="flex items-center gap-2">
-              <Monitor className="h-4 w-4" />
-              Devices
-            </TabsTrigger>
-          </TabsList>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
+          <div className="flex items-center justify-center">
+            <TabsList className="grid w-full grid-cols-4 max-w-3xl h-12 bg-muted/30 border border-border/50 backdrop-blur-sm">
+              <TabsTrigger 
+                value="dashboard" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <BarChart3 className="h-4 w-4" />
+                Dashboard
+              </TabsTrigger>
+              <TabsTrigger 
+                value="employees" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <Users className="h-4 w-4" />
+                Employees
+              </TabsTrigger>
+              <TabsTrigger 
+                value="locations" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <Building2 className="h-4 w-4" />
+                Locations
+              </TabsTrigger>
+              <TabsTrigger 
+                value="devices" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <Monitor className="h-4 w-4" />
+                Devices
+              </TabsTrigger>
+            </TabsList>
+          </div>
 
           {/* Dashboard Tab */}
-          <TabsContent value="dashboard" className="space-y-6">
+          <TabsContent value="dashboard" className="space-y-8">
             {/* Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card className="bg-gradient-primary text-primary-foreground shadow-primary">
-                <CardContent className="p-6">
+              <Card className="relative overflow-hidden bg-gradient-to-br from-primary via-primary-dark to-primary border-0 shadow-elegant hover:shadow-glow transition-all duration-300">
+                <div className="absolute inset-0 bg-grid-white/10 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
+                <CardContent className="relative p-6 text-primary-foreground">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-primary-foreground/80 text-sm">Total Employees</p>
-                      <p className="text-3xl font-bold">{employeeStats.total}</p>
+                    <div className="space-y-1">
+                      <p className="text-primary-foreground/90 text-sm font-medium">Total Employees</p>
+                      <p className="text-3xl font-bold tracking-tight">{employeeStats.total}</p>
+                      <p className="text-primary-foreground/70 text-xs">Active in system</p>
                     </div>
-                    <Users className="h-12 w-12 text-primary-foreground/60" />
+                    <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                      <Users className="h-6 w-6" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-gradient-success text-success-foreground shadow-success">
-                <CardContent className="p-6">
+              <Card className="relative overflow-hidden bg-gradient-to-br from-success via-success-dark to-success border-0 shadow-elegant hover:shadow-success transition-all duration-300">
+                <div className="absolute inset-0 bg-grid-white/10 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
+                <CardContent className="relative p-6 text-success-foreground">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-success-foreground/80 text-sm">Present Today</p>
-                      <p className="text-3xl font-bold">{employeeStats.present}</p>
+                    <div className="space-y-1">
+                      <p className="text-success-foreground/90 text-sm font-medium">Present Today</p>
+                      <p className="text-3xl font-bold tracking-tight">{employeeStats.present}</p>
+                      <p className="text-success-foreground/70 text-xs">Currently clocked in</p>
                     </div>
-                    <CheckCircle2 className="h-12 w-12 text-success-foreground/60" />
+                    <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                      <CheckCircle2 className="h-6 w-6" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-warning text-warning-foreground">
-                <CardContent className="p-6">
+              <Card className="relative overflow-hidden bg-gradient-to-br from-warning via-warning-dark to-warning border-0 shadow-elegant hover:shadow-warning transition-all duration-300">
+                <div className="absolute inset-0 bg-grid-white/10 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
+                <CardContent className="relative p-6 text-warning-foreground">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-warning-foreground/80 text-sm">Temporary Exit</p>
-                      <p className="text-3xl font-bold">{employeeStats.tempExit}</p>
+                    <div className="space-y-1">
+                      <p className="text-warning-foreground/90 text-sm font-medium">Temporary Exit</p>
+                      <p className="text-3xl font-bold tracking-tight">{employeeStats.tempExit}</p>
+                      <p className="text-warning-foreground/70 text-xs">Stepped out temporarily</p>
                     </div>
-                    <Clock className="h-12 w-12 text-warning-foreground/60" />
+                    <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                      <Clock className="h-6 w-6" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-destructive text-destructive-foreground">
-                <CardContent className="p-6">
+              <Card className="relative overflow-hidden bg-gradient-to-br from-destructive via-destructive-dark to-destructive border-0 shadow-elegant hover:shadow-destructive transition-all duration-300">
+                <div className="absolute inset-0 bg-grid-white/10 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
+                <CardContent className="relative p-6 text-destructive-foreground">
                   <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-destructive-foreground/80 text-sm">Absent Today</p>
-                      <p className="text-3xl font-bold">{employeeStats.absent}</p>
+                    <div className="space-y-1">
+                      <p className="text-destructive-foreground/90 text-sm font-medium">Absent Today</p>
+                      <p className="text-3xl font-bold tracking-tight">{employeeStats.absent}</p>
+                      <p className="text-destructive-foreground/70 text-xs">Not present</p>
                     </div>
-                    <XCircle className="h-12 w-12 text-destructive-foreground/60" />
+                    <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+                      <XCircle className="h-6 w-6" />
+                    </div>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
             {/* Current Status and Recent Events */}
-            <div className="grid lg:grid-cols-2 gap-6">
+            <div className="grid lg:grid-cols-2 gap-8">
               {/* Current Employee Status */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Current Employee Status</CardTitle>
-                  <CardDescription>Real-time attendance status</CardDescription>
+              <Card className="bg-card/60 backdrop-blur-sm border-border/50 shadow-elegant">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-primary flex items-center justify-center">
+                      <Activity className="h-5 w-5 text-primary-foreground" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Live Status</CardTitle>
+                      <CardDescription>Real-time employee attendance</CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                  <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-border">
                     {currentStatus.slice(0, 10).map((employee) => (
-                      <div key={employee.employee_id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div key={employee.employee_id} className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border/30 hover:bg-muted/50 transition-colors">
                         <div className="flex items-center gap-3">
-                          <div className={`h-3 w-3 rounded-full ${
-                            employee.current_status === 'clocked_in' ? 'bg-success' : 
-                            employee.current_status === 'temporary_exit' ? 'bg-warning' : 'bg-muted-foreground'
+                          <div className={`h-3 w-3 rounded-full ring-2 ring-white/20 ${
+                            employee.current_status === 'clocked_in' ? 'bg-success shadow-success' : 
+                            employee.current_status === 'temporary_exit' ? 'bg-warning shadow-warning' : 'bg-muted-foreground'
                           }`} />
-                          <div>
-                            <p className="font-medium text-sm">{employee.full_name}</p>
-                            <p className="text-xs text-muted-foreground">{employee.employee_code}</p>
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
+                              <span className="text-xs font-medium text-primary-foreground">
+                                {employee.full_name.charAt(0)}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm text-foreground">{employee.full_name}</p>
+                              <p className="text-xs text-muted-foreground">{employee.employee_code}</p>
+                            </div>
                           </div>
                         </div>
-                        <div className="text-right">
+                        <div className="text-right space-y-1">
                           <Badge variant={
                             employee.current_status === 'clocked_in' ? 'default' : 
                             employee.current_status === 'temporary_exit' ? 'secondary' : 'destructive'
-                          } className="text-xs">
+                          } className="text-xs font-medium">
                             {employee.current_status === 'clocked_in' ? 'Present' : 
                              employee.current_status === 'temporary_exit' ? 'Step Out' : 'Absent'}
                           </Badge>
                           {employee.current_location_name && (
-                            <p className="text-xs text-muted-foreground mt-1">{employee.current_location_name}</p>
+                            <p className="text-xs text-muted-foreground">{employee.current_location_name}</p>
                           )}
                         </div>
                       </div>
@@ -352,28 +413,41 @@ const AdminDashboard = () => {
               </Card>
 
               {/* Recent Activity */}
-              <Card>
-                <CardHeader>
-                  <CardTitle>Recent Activity</CardTitle>
-                  <CardDescription>Latest attendance events</CardDescription>
+              <Card className="bg-card/60 backdrop-blur-sm border-border/50 shadow-elegant">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-accent-dark flex items-center justify-center">
+                      <Clock className="h-5 w-5 text-accent-foreground" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-lg">Recent Activity</CardTitle>
+                      <CardDescription>Latest attendance events</CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                  <div className="space-y-3 max-h-96 overflow-y-auto scrollbar-thin scrollbar-thumb-border">
                     {recentEvents.map((event) => (
-                      <div key={event.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div key={event.id} className="flex items-center justify-between p-4 bg-muted/30 rounded-xl border border-border/30 hover:bg-muted/50 transition-colors">
                         <div className="flex items-center gap-3">
-                          <div className={`h-3 w-3 rounded-full ${
-                            event.event_type.includes('in') ? 'bg-success' : 'bg-primary'
+                          <div className={`h-3 w-3 rounded-full ring-2 ring-white/20 ${
+                            event.event_type.includes('in') ? 'bg-success shadow-success' : 'bg-primary shadow-primary'
                           }`} />
                           <div>
-                            <p className="font-medium text-sm">{event.employee_name}</p>
+                            <p className="font-medium text-sm text-foreground">{event.employee_name}</p>
                             <p className="text-xs text-muted-foreground">
-                              {event.event_type.replace('_', ' ')} at {event.location_name}
+                              <span className="capitalize">{event.event_type.replace('_', ' ')}</span> at {event.location_name}
                             </p>
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-xs font-medium">{formatTimeAgo(event.timestamp)}</p>
+                          <p className="text-xs font-medium text-foreground">{formatTimeAgo(event.timestamp)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(event.timestamp).toLocaleTimeString('en-US', { 
+                              hour: '2-digit', 
+                              minute: '2-digit' 
+                            })}
+                          </p>
                         </div>
                       </div>
                     ))}

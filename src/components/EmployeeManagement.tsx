@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search, Edit, Trash2, Camera, User } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Camera, User, Users } from "lucide-react";
 import FaceRegistration from "./FaceRegistration";
 
 interface Employee {
@@ -214,11 +214,13 @@ const EmployeeManagement = () => {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Employee Management</h2>
-          <p className="text-muted-foreground">Manage employee records and face registration</p>
+        <div className="space-y-1">
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+            Employee Management
+          </h2>
+          <p className="text-muted-foreground text-lg">Manage employee records and face recognition</p>
         </div>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
@@ -234,7 +236,7 @@ const EmployeeManagement = () => {
               });
             }}>
               <Plus className="mr-2 h-4 w-4" />
-              Add Employee
+              Add New Employee
             </Button>
           </DialogTrigger>
           <DialogContent className="max-w-md">
@@ -323,17 +325,21 @@ const EmployeeManagement = () => {
         </Dialog>
       </div>
 
-      <Card>
-        <CardHeader>
+      <Card className="bg-card/60 backdrop-blur-sm border-border/50 shadow-elegant">
+        <CardHeader className="pb-6">
           <div className="flex items-center gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search employees..."
+                placeholder="Search by name, code, or department..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
+                className="pl-10 h-11 bg-background/50 border-border/50 focus:border-primary"
               />
+            </div>
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Users className="h-4 w-4" />
+              <span>{filteredEmployees.length} employees</span>
             </div>
           </div>
         </CardHeader>

@@ -95,19 +95,28 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-kiosk flex items-center justify-center p-6">
-      <Card className="w-full max-w-md shadow-kiosk">
-        <CardHeader className="text-center">
-          <img src={jusTrackLogo} alt="JusTrack" className="h-12 w-auto mx-auto mb-4" />
-          <CardTitle className="text-2xl">Admin Login</CardTitle>
-          <CardDescription>
-            Sign in to access the JusTrack admin dashboard
-          </CardDescription>
+    <div className="min-h-screen bg-gradient-to-br from-admin via-admin-secondary to-admin-accent flex items-center justify-center p-6">
+      <div className="absolute inset-0 bg-grid-white/10 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
+      <Card className="w-full max-w-md shadow-elegant border-admin-accent/20 bg-card/95 backdrop-blur-sm">
+        <CardHeader className="text-center space-y-6">
+          <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-primary p-3 shadow-glow">
+            <img src={jusTrackLogo} alt="JusTrack" className="w-full h-full object-contain filter brightness-0 invert" />
+          </div>
+          <div className="space-y-2">
+            <CardTitle className="text-3xl font-bold bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
+              Admin Portal
+            </CardTitle>
+            <CardDescription className="text-base text-muted-foreground">
+              Welcome back! Please sign in to your account
+            </CardDescription>
+          </div>
         </CardHeader>
-        <CardContent>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="email">Email Address</Label>
+        <CardContent className="space-y-8">
+          <form onSubmit={handleLogin} className="space-y-6">
+            <div className="space-y-3">
+              <Label htmlFor="email" className="text-sm font-medium text-foreground">
+                Email Address
+              </Label>
               <Input
                 id="email"
                 type="email"
@@ -116,33 +125,37 @@ const AdminLogin = () => {
                 onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
                 disabled={loading}
                 required
+                className="h-12 bg-background border-border/50 focus:border-primary transition-colors"
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+            <div className="space-y-3">
+              <Label htmlFor="password" className="text-sm font-medium text-foreground">
+                Password
+              </Label>
               <div className="relative">
                 <Input
                   id="password"
                   type={showPassword ? "text" : "password"}
-                  placeholder="Enter your password"
+                  placeholder="••••••••"
                   value={formData.password}
                   onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                   disabled={loading}
                   required
+                  className="h-12 bg-background border-border/50 focus:border-primary transition-colors pr-12"
                 />
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  className="absolute right-1 top-1 h-10 w-10 hover:bg-muted/50"
                   onClick={() => setShowPassword(!showPassword)}
                   disabled={loading}
                 >
                   {showPassword ? (
-                    <EyeOff className="h-4 w-4" />
+                    <EyeOff className="h-4 w-4 text-muted-foreground" />
                   ) : (
-                    <Eye className="h-4 w-4" />
+                    <Eye className="h-4 w-4 text-muted-foreground" />
                   )}
                 </Button>
               </div>
@@ -150,29 +163,28 @@ const AdminLogin = () => {
 
             <Button 
               type="submit"
-              variant="admin" 
               size="lg" 
-              className="w-full" 
+              className="w-full h-12 bg-gradient-primary text-primary-foreground hover:opacity-90 transition-opacity font-medium" 
               disabled={loading}
             >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Sign In
+              {loading ? "Signing In..." : "Sign In to Dashboard"}
             </Button>
           </form>
 
-          <div className="mt-6 text-center">
+          <div className="flex flex-col items-center space-y-4">
             <Button
               variant="ghost"
               onClick={() => navigate('/')}
-              className="text-sm"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors"
             >
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back to Home
             </Button>
-          </div>
-
-          <div className="mt-4 text-center text-sm text-muted-foreground">
-            <p>Powered by Shatak Infotech</p>
+            
+            <div className="text-center text-xs text-muted-foreground/70">
+              <p>Powered by <span className="font-medium">Shatak Infotech</span></p>
+            </div>
           </div>
         </CardContent>
       </Card>
