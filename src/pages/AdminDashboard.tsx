@@ -1,21 +1,24 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, memo, lazy, Suspense } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import EmployeeManagement from "@/components/EmployeeManagement";
-import LocationManagement from "@/components/LocationManagement";
-import DeviceManagement from "@/components/DeviceManagement";
-import AttendanceReports from "@/components/AttendanceReports";
-import AnalyticsDashboard from "@/components/AnalyticsDashboard";
-import TemporaryExitManagement from "@/components/TemporaryExitManagement";
-import SystemSettings from "@/components/SystemSettings";
-import UserManagement from "@/components/UserManagement";
-import SystemMonitoring from "@/components/SystemMonitoring";
-import NotificationCenter from "@/components/NotificationCenter";
-import NotificationManagement from "@/components/NotificationManagement";
-import SystemAlerts from "@/components/SystemAlerts";
+import LoadingSkeleton from "@/components/LoadingSkeleton";
+
+// Lazy load heavy components for better performance
+const AnalyticsDashboard = lazy(() => import("@/components/AnalyticsDashboard"));
+const EmployeeManagement = lazy(() => import("@/components/EmployeeManagement"));
+const LocationManagement = lazy(() => import("@/components/LocationManagement"));
+const DeviceManagement = lazy(() => import("@/components/DeviceManagement"));
+const AttendanceReports = lazy(() => import("@/components/AttendanceReports"));
+const TemporaryExitManagement = lazy(() => import("@/components/TemporaryExitManagement"));
+const SystemSettings = lazy(() => import("@/components/SystemSettings"));
+const UserManagement = lazy(() => import("@/components/UserManagement"));
+const SystemMonitoring = lazy(() => import("@/components/SystemMonitoring"));
+const NotificationCenter = lazy(() => import("@/components/NotificationCenter"));
+const NotificationManagement = lazy(() => import("@/components/NotificationManagement"));
+const SystemAlerts = lazy(() => import("@/components/SystemAlerts"));
 import { 
   Users, 
   MapPin, 
@@ -255,7 +258,9 @@ const AdminDashboard = () => {
                   <p className="text-xs text-muted-foreground">Administrator</p>
                 </div>
               </div>
-              <NotificationCenter />
+              <Suspense fallback={<div className="animate-pulse bg-muted h-8 w-8 rounded" />}>
+                <NotificationCenter />
+              </Suspense>
               <Button 
                 variant="outline" 
                 onClick={handleLogout}
@@ -547,27 +552,37 @@ const AdminDashboard = () => {
             </TabsList>
             
             <TabsContent value="settings">
-              <SystemSettings />
+              <Suspense fallback={<LoadingSkeleton type="form" count={6} />}>
+                <SystemSettings />
+              </Suspense>
             </TabsContent>
             
             <TabsContent value="users">
-              <UserManagement />
+              <Suspense fallback={<LoadingSkeleton type="table" count={6} />}>
+                <UserManagement />
+              </Suspense>
             </TabsContent>
             
             <TabsContent value="monitoring">
-              <SystemMonitoring />
+              <Suspense fallback={<LoadingSkeleton type="dashboard" />}>
+                <SystemMonitoring />
+              </Suspense>
             </TabsContent>
           </Tabs>
         </TabsContent>
 
         {/* Notifications Tab */}
         <TabsContent value="notifications" className="space-y-6">
-          <NotificationManagement />
+          <Suspense fallback={<LoadingSkeleton type="form" count={5} />}>
+            <NotificationManagement />
+          </Suspense>
         </TabsContent>
 
         {/* System Alerts Tab */}
         <TabsContent value="alerts" className="space-y-6">
-          <SystemAlerts />
+          <Suspense fallback={<LoadingSkeleton type="dashboard" />}>
+            <SystemAlerts />
+          </Suspense>
         </TabsContent>
       </Tabs>
       </main>

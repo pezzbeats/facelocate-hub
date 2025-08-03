@@ -1,10 +1,14 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useEffect, useCallback, memo, useRef, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { useMediaQuery, useIsMobile } from "@/hooks/useMediaQuery";
+import { useAsyncOperation } from "@/hooks/useErrorHandling";
+import LoadingSkeleton from "@/components/LoadingSkeleton";
 import { supabase } from "@/integrations/supabase/client";
-import { faceRecognitionService } from "@/services/FaceRecognitionService";
+import { FaceRecognitionService } from "@/services/FaceRecognitionService";
 import { 
   Camera, 
   MapPin, 
@@ -40,35 +44,41 @@ interface DeviceInfo {
 }
 
 const KioskInterface = () => {
+  const navigate = useNavigate();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [cameraStatus, setCameraStatus] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const { execute: executeAsync, loading: asyncLoading } = useAsyncOperation();
 
-  const [kioskState, setKioskState] = useState<KioskState>({
-    status: 'loading',
-    currentEmployee: null,
-    attendanceAction: null,
-    errorMessage: null,
-    countdown: 0,
-    employeeStatus: null,
-    pendingRequest: null
-  });
+  const deviceCode = searchParams.get('device') || localStorage.getItem('deviceCode');
+  const faceRecognition = useMemo(() => new FaceRecognitionService(), []);
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [device, setDevice] = useState<DeviceInfo | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [currentEmployee, setCurrentEmployee] = useState<any>(null);
+  const [attendanceAction, setAttendanceAction] = useState<any>(null);
+  const [countdown, setCountdown] = useState(0);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [faceDetectionActive, setFaceDetectionActive] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+  const [error, setError] = useState<string | null>(null);
+
+  // Time update effect
   useEffect(() => {
-    initializeKiosk();
-    
-    // Update time every second
-    const timeInterval = setInterval(() => {
+    const interval = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
+  // Initialize kiosk
+  useEffect(() => {
+    initializeKiosk().finally(() => setIsLoading(false));
     return () => {
-      clearInterval(timeInterval);
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
       }
     };
   }, []);
@@ -80,8 +90,8 @@ const KioskInterface = () => {
       
       // Load face recognition models
       try {
-        await faceRecognitionService.loadModels();
-        await faceRecognitionService.loadEmployeeDescriptors();
+        await faceRecognition.loadModels();
+        await faceRecognition.loadEmployeeDescriptors();
       } catch (modelError) {
         console.warn('Face recognition models failed to load, using fallback mode:', modelError);
         toast({
@@ -94,13 +104,9 @@ const KioskInterface = () => {
       // Initialize camera
       await initializeCamera();
       
-      setKioskState(prev => ({ ...prev, status: 'standby' }));
     } catch (error: any) {
-      setKioskState(prev => ({ 
-        ...prev, 
-        status: 'error', 
-        errorMessage: error.message 
-      }));
+      setError(error.message);
+    }
     }
   };
 
@@ -141,7 +147,7 @@ const KioskInterface = () => {
       throw new Error('Device not registered. Please register this device first.');
     }
 
-    setDeviceInfo({
+    setDevice({
       id: device.id,
       device_name: device.device_name,
       device_code: device.device_code,
@@ -177,13 +183,13 @@ const KioskInterface = () => {
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
-        setStream(mediaStream);
-        setCameraStatus('ready');
+        setCameraStream(mediaStream);
+        setFaceDetectionActive(true);
         startFaceRecognitionLoop();
       }
     } catch (error) {
       console.error('Camera access error:', error);
-      setCameraStatus('error');
+      setFaceDetectionActive(false);
       throw new Error('Camera access denied. Please allow camera access.');
     }
   };
@@ -192,34 +198,30 @@ const KioskInterface = () => {
     let recognitionInterval: NodeJS.Timeout;
 
     const recognitionLoop = async () => {
-      if (kioskState.status !== 'standby' || !videoRef.current) return;
+      if (!faceDetectionActive || !videoRef.current) return;
 
       try {
-        setKioskState(prev => ({ ...prev, status: 'detecting' }));
+        setIsProcessing(true);
         
         // Try face recognition if service is available
         try {
-          const detection = await faceRecognitionService.detectFace(videoRef.current);
+          const detection = await faceRecognition.detectFace(videoRef.current);
           
           if (detection) {
-            const quality = faceRecognitionService.assessFaceQuality(detection);
+            const quality = faceRecognition.assessFaceQuality(detection);
             
             if (quality.isGood) {
-              setKioskState(prev => ({ ...prev, status: 'recognizing' }));
+              setCurrentEmployee({ recognizing: true });
               
-              const recognition = await faceRecognitionService.recognizeEmployee(detection);
+              const recognition = await faceRecognition.recognizeEmployee(detection);
               
               if (recognition && recognition.confidence > 0.85) {
                 await handleEmployeeRecognized(recognition.employee, recognition.confidence);
                 return;
               } else {
-                setKioskState(prev => ({ 
-                  ...prev, 
-                  status: 'error',
-                  errorMessage: 'Face not recognized. Please try again or contact admin.'
-                }));
+                setCurrentEmployee({ error: 'Face not recognized. Please try again or contact admin.' });
                 setTimeout(() => {
-                  setKioskState(prev => ({ ...prev, status: 'standby', errorMessage: null }));
+                  setCurrentEmployee(null);
                 }, 3000);
                 return;
               }
@@ -230,21 +232,12 @@ const KioskInterface = () => {
         }
         
         // Reset to standby if no face detected
-        setKioskState(prev => {
-          if (prev.status === 'detecting') {
-            return { ...prev, status: 'standby' };
-          }
-          return prev;
-        });
+        setIsProcessing(false);
       } catch (error) {
         console.error('Recognition loop error:', error);
-        setKioskState(prev => ({ 
-          ...prev, 
-          status: 'error',
-          errorMessage: 'Recognition error. Please try again.'
-        }));
+        setCurrentEmployee({ error: 'Recognition error. Please try again.' });
         setTimeout(() => {
-          setKioskState(prev => ({ ...prev, status: 'standby', errorMessage: null }));
+          setCurrentEmployee(null);
         }, 3000);
       }
     };
@@ -278,8 +271,8 @@ const KioskInterface = () => {
           // Process return from temporary exit
           const { error: returnError } = await supabase.rpc('process_attendance_action', {
             emp_id: employee.id,
-            location_id: deviceInfo?.location_id,
-            device_id: deviceInfo?.id,
+            location_id: device?.location_id,
+            device_id: device?.id,
             action_type: 'temp_return',
             confidence_score: confidence,
             temp_exit_id: statusData.temp_exit_id
@@ -287,26 +280,15 @@ const KioskInterface = () => {
 
           if (returnError) throw returnError;
 
-          setKioskState(prev => ({
-            ...prev,
-            status: 'success',
-            currentEmployee: employee,
-            attendanceAction: { 
-              result: { message: `Welcome back from temporary exit! (${statusData.exit_reason})` }
-            }
-          }));
+          setCurrentEmployee(employee);
+          setAttendanceAction({ 
+            result: { message: `Welcome back from temporary exit! (${statusData.exit_reason})` }
+          });
 
           // Return to standby after 3 seconds
           setTimeout(() => {
-            setKioskState({
-              status: 'standby',
-              currentEmployee: null,
-              attendanceAction: null,
-              errorMessage: null,
-              countdown: 0,
-              employeeStatus: null,
-              pendingRequest: null
-            });
+            setCurrentEmployee(null);
+            setAttendanceAction(null);
           }, 3000);
           return;
         }
@@ -315,7 +297,7 @@ const KioskInterface = () => {
       // Determine regular attendance action
       const { data: actionData, error: actionError } = await supabase.rpc('determine_attendance_action', {
         emp_id: employee.id,
-        current_location_id: deviceInfo?.location_id
+        current_location_id: device?.location_id
       });
 
       if (actionError) throw actionError;
