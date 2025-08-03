@@ -182,6 +182,9 @@ const DeviceManagement = () => {
           <p className="text-muted-foreground">Monitor and manage kiosk devices</p>
         </div>
         <div className="flex gap-2">
+          <Button onClick={() => window.open('/kiosk/register', '_blank')}>
+            Register New Device
+          </Button>
           <Button variant="outline" onClick={loadDevices}>
             Refresh Status
           </Button>
