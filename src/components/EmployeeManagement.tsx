@@ -6,10 +6,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search, Edit, Trash2, Camera, User, Users } from "lucide-react";
+import { useDebounce } from "@/hooks/useDebounce";
+import { Plus, Search, Edit, Trash2, Camera, User, Users, Filter, Download, MoreVertical, CheckSquare, Square } from "lucide-react";
 import FaceRegistration from "./FaceRegistration";
 
 interface Employee {
@@ -30,11 +33,16 @@ const EmployeeManagement = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedEmployees, setSelectedEmployees] = useState<string[]>([]);
+  const [departmentFilter, setDepartmentFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [showFaceRegistration, setShowFaceRegistration] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const { toast } = useToast();
+  
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   const [formData, setFormData] = useState({
     full_name: "",
@@ -207,11 +215,104 @@ const EmployeeManagement = () => {
     setShowFaceRegistration(true);
   };
 
-  const filteredEmployees = employees.filter(emp =>
-    emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.employee_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.department.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const handleSelectEmployee = (employeeId: string, checked: boolean) => {
+    if (checked) {
+      setSelectedEmployees(prev => [...prev, employeeId]);
+    } else {
+      setSelectedEmployees(prev => prev.filter(id => id !== employeeId));
+    }
+  };
+
+  const handleSelectAll = (checked: boolean) => {
+    if (checked) {
+      setSelectedEmployees(filteredEmployees.map(emp => emp.id));
+    } else {
+      setSelectedEmployees([]);
+    }
+  };
+
+  const handleBulkAction = async (action: string) => {
+    if (selectedEmployees.length === 0) {
+      toast({
+        title: "No Selection",
+        description: "Please select employees first",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const count = selectedEmployees.length;
+    const confirmMessage = `${action} ${count} employee${count > 1 ? 's' : ''}?`;
+    
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      switch (action) {
+        case 'deactivate':
+          await supabase
+            .from('employees')
+            .update({ is_active: false })
+            .in('id', selectedEmployees);
+          break;
+        case 'activate':
+          await supabase
+            .from('employees')
+            .update({ is_active: true })
+            .in('id', selectedEmployees);
+          break;
+      }
+
+      toast({
+        title: "Bulk Action Complete",
+        description: `Successfully ${action}d ${count} employee${count > 1 ? 's' : ''}`
+      });
+
+      setSelectedEmployees([]);
+      loadEmployees();
+    } catch (error: any) {
+      toast({
+        title: "Bulk Action Failed",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
+  };
+
+  const exportEmployees = () => {
+    const csv = [
+      ['Employee Code', 'Name', 'Email', 'Department', 'Status', 'Face Registered'],
+      ...filteredEmployees.map(emp => [
+        emp.employee_code,
+        emp.full_name,
+        emp.email,
+        emp.department,
+        emp.is_active ? 'Active' : 'Inactive',
+        emp.face_registered ? 'Yes' : 'No'
+      ])
+    ].map(row => row.join(',')).join('\n');
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'employees.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const filteredEmployees = employees.filter(emp => {
+    const matchesSearch = debouncedSearchTerm === "" || 
+      emp.full_name.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      emp.employee_code.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      emp.department.toLowerCase().includes(debouncedSearchTerm.toLowerCase());
+    
+    const matchesDepartment = departmentFilter === "all" || emp.department === departmentFilter;
+    const matchesStatus = statusFilter === "all" || 
+      (statusFilter === "active" && emp.is_active) ||
+      (statusFilter === "inactive" && !emp.is_active);
+    
+    return matchesSearch && matchesDepartment && matchesStatus;
+  });
 
   return (
     <div className="space-y-8">
@@ -327,19 +428,92 @@ const EmployeeManagement = () => {
 
       <Card className="bg-card/60 backdrop-blur-sm border-border/50 shadow-elegant">
         <CardHeader className="pb-6">
-          <div className="flex items-center gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, code, or department..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10 h-11 bg-background/50 border-border/50 focus:border-primary"
-              />
+          <div className="space-y-4">
+            {/* Search and Filter Bar */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search by name, code, or department..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-10 h-11 bg-background/50 border-border/50 focus:border-primary"
+                />
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="All Departments" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departments.map(dept => (
+                      <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="w-[140px]">
+                    <SelectValue placeholder="All Status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="inactive">Inactive</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                <Button variant="outline" onClick={exportEmployees} size="sm">
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </Button>
+              </div>
             </div>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Users className="h-4 w-4" />
-              <span>{filteredEmployees.length} employees</span>
+
+            {/* Bulk Actions */}
+            {selectedEmployees.length > 0 && (
+              <div className="flex items-center gap-2 p-3 bg-primary/10 rounded-lg border">
+                <span className="text-sm font-medium">
+                  {selectedEmployees.length} employee{selectedEmployees.length > 1 ? 's' : ''} selected
+                </span>
+                <div className="flex gap-2 ml-auto">
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleBulkAction('activate')}
+                  >
+                    Activate
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => handleBulkAction('deactivate')}
+                  >
+                    Deactivate
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline"
+                    onClick={() => setSelectedEmployees([])}
+                  >
+                    Clear
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Stats */}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                <span>{filteredEmployees.length} employees</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <CheckSquare className="h-4 w-4 text-green-600" />
+                <span>{filteredEmployees.filter(e => e.face_registered).length} with face data</span>
+              </div>
             </div>
           </div>
         </CardHeader>
@@ -347,6 +521,12 @@ const EmployeeManagement = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-12">
+                  <Checkbox
+                    checked={selectedEmployees.length === filteredEmployees.length && filteredEmployees.length > 0}
+                    onCheckedChange={handleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Employee Code</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Department</TableHead>
@@ -357,7 +537,16 @@ const EmployeeManagement = () => {
             </TableHeader>
             <TableBody>
               {filteredEmployees.map((employee) => (
-                <TableRow key={employee.id}>
+                <TableRow 
+                  key={employee.id}
+                  className={selectedEmployees.includes(employee.id) ? "bg-muted/50" : ""}
+                >
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedEmployees.includes(employee.id)}
+                      onCheckedChange={(checked) => handleSelectEmployee(employee.id, checked as boolean)}
+                    />
+                  </TableCell>
                   <TableCell className="font-medium">{employee.employee_code}</TableCell>
                   <TableCell>
                     <div>
@@ -377,16 +566,16 @@ const EmployeeManagement = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    <div className="flex gap-2">
+                    <div className="flex gap-1">
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={() => handleEdit(employee)}
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
                       <Button
-                        variant="outline"
+                        variant="ghost"
                         size="sm"
                         onClick={() => handleFaceRegistration(employee)}
                         disabled={!employee.is_active}
@@ -394,18 +583,46 @@ const EmployeeManagement = () => {
                       >
                         <Camera className="h-4 w-4" />
                       </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(employee)}
-                        disabled={!employee.is_active}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm">
+                            <MoreVertical className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(employee)}>
+                            <Edit className="mr-2 h-4 w-4" />
+                            Edit Details
+                          </DropdownMenuItem>
+                          <DropdownMenuItem 
+                            onClick={() => handleFaceRegistration(employee)}
+                            disabled={!employee.is_active}
+                          >
+                            <Camera className="mr-2 h-4 w-4" />
+                            {employee.face_registered ? "Re-register Face" : "Register Face"}
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem 
+                            onClick={() => handleDelete(employee)}
+                            disabled={!employee.is_active}
+                            className="text-destructive"
+                          >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            Deactivate
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                     </div>
                   </TableCell>
                 </TableRow>
               ))}
+              {filteredEmployees.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                    No employees found matching your criteria
+                  </TableCell>
+                </TableRow>
+              )}
             </TableBody>
           </Table>
         </CardContent>

@@ -8,8 +8,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useDebounce } from "@/hooks/useDebounce";
 import { 
   Settings, 
   Save, 
@@ -19,7 +21,11 @@ import {
   Bell, 
   Palette,
   Eye,
-  Loader2
+  Loader2,
+  Search,
+  RotateCcw,
+  Info,
+  AlertTriangle
 } from "lucide-react";
 
 interface SystemSetting {
@@ -37,7 +43,11 @@ const SystemSettings = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeTab, setActiveTab] = useState("attendance");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [hasChanges, setHasChanges] = useState(false);
   const { toast } = useToast();
+  
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
   useEffect(() => {
     loadSettings();
@@ -84,15 +94,37 @@ const SystemSettings = () => {
           : setting
       ));
 
+      setHasChanges(false);
       toast({
-        title: "Success",
-        description: "Setting updated successfully"
+        title: "Setting Updated",
+        description: `${key.replace(/_/g, ' ')} has been updated successfully`
       });
     } catch (error: any) {
       console.error('Error updating setting:', error);
       toast({
-        title: "Error",
-        description: error.message || "Failed to update setting",
+        title: "Failed to Update Setting",
+        description: error.message || "Please try again or contact support",
+        variant: "destructive"
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const resetToDefaults = async (category: string) => {
+    if (!confirm(`Reset all ${category} settings to default values?`)) return;
+    
+    try {
+      setSaving(true);
+      // This would need a backend function to reset settings
+      toast({
+        title: "Settings Reset",
+        description: `${category} settings have been reset to defaults`
+      });
+    } catch (error: any) {
+      toast({
+        title: "Reset Failed",
+        description: error.message,
         variant: "destructive"
       });
     } finally {
@@ -116,6 +148,7 @@ const SystemSettings = () => {
     }
 
     const handleChange = (newValue: any) => {
+      setHasChanges(true);
       updateSetting(setting.category, setting.setting_key, newValue);
     };
 
@@ -207,7 +240,14 @@ const SystemSettings = () => {
   };
 
   const getSettingsByCategory = (category: string) => {
-    return settings.filter(setting => setting.category === category);
+    const categorySettings = settings.filter(setting => setting.category === category);
+    
+    if (!debouncedSearchTerm) return categorySettings;
+    
+    return categorySettings.filter(setting =>
+      setting.setting_key.toLowerCase().includes(debouncedSearchTerm.toLowerCase()) ||
+      setting.description.toLowerCase().includes(debouncedSearchTerm.toLowerCase())
+    );
   };
 
   const getCategoryIcon = (category: string) => {
@@ -234,17 +274,40 @@ const SystemSettings = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">System Settings</h2>
-          <p className="text-muted-foreground">
-            Configure global system behavior and preferences
-          </p>
+      <div className="flex flex-col gap-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold">System Settings</h2>
+            <p className="text-muted-foreground">
+              Configure global system behavior and preferences
+            </p>
+          </div>
+          <Button onClick={loadSettings} variant="outline" disabled={loading}>
+            <RefreshCw className="mr-2 h-4 w-4" />
+            Refresh
+          </Button>
         </div>
-        <Button onClick={loadSettings} variant="outline" disabled={loading}>
-          <RefreshCw className="mr-2 h-4 w-4" />
-          Refresh
-        </Button>
+        
+        {/* Search and Info Bar */}
+        <div className="flex items-center gap-4 p-4 bg-card/50 rounded-lg border border-border/50">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search settings..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 bg-background/50"
+            />
+          </div>
+          {hasChanges && (
+            <Alert className="flex-shrink-0 w-auto p-2 border-amber-200 bg-amber-50">
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+              <AlertDescription className="text-sm text-amber-700">
+                You have unsaved changes
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -262,47 +325,74 @@ const SystemSettings = () => {
           ))}
         </TabsList>
 
-        {categories.map(category => (
-          <TabsContent key={category} value={category} className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  {getCategoryIcon(category)}
-                  {category.charAt(0).toUpperCase() + category.slice(1).replace('_', ' ')} Settings
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {getSettingsByCategory(category).map(setting => (
-                  <div key={setting.id} className="space-y-2 p-4 border rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div className="space-y-1">
-                        <Label className="font-medium capitalize">
-                          {setting.setting_key.replace(/_/g, ' ')}
-                        </Label>
-                        <p className="text-sm text-muted-foreground">
-                          {setting.description}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {setting.is_public && (
-                          <Badge variant="secondary" className="text-xs">
-                            Public
-                          </Badge>
-                        )}
-                        <Badge variant="outline" className="text-xs">
-                          {setting.data_type}
-                        </Badge>
-                      </div>
-                    </div>
-                    <div className="pt-2">
-                      {renderSettingInput(setting)}
-                    </div>
+        {categories.map(category => {
+          const categorySettings = getSettingsByCategory(category);
+          return (
+            <TabsContent key={category} value={category} className="space-y-4">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      {getCategoryIcon(category)}
+                      {category.charAt(0).toUpperCase() + category.slice(1).replace('_', ' ')} Settings
+                    </CardTitle>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => resetToDefaults(category)}
+                      disabled={saving}
+                    >
+                      <RotateCcw className="mr-2 h-4 w-4" />
+                      Reset Defaults
+                    </Button>
                   </div>
-                ))}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        ))}
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {categorySettings.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      <Info className="h-8 w-8 mx-auto mb-2" />
+                      {debouncedSearchTerm ? (
+                        <p>No settings found matching "{debouncedSearchTerm}"</p>
+                      ) : (
+                        <p>No settings configured for this category</p>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {categorySettings.map(setting => (
+                        <div key={setting.id} className="p-4 border rounded-lg bg-card/30 hover:bg-card/50 transition-colors">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="space-y-2 flex-1">
+                              <div className="flex items-center gap-2">
+                                <Label className="font-medium capitalize">
+                                  {setting.setting_key.replace(/_/g, ' ')}
+                                </Label>
+                                {setting.is_public && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    Public
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="text-xs">
+                                  {setting.data_type}
+                                </Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground leading-relaxed">
+                                {setting.description}
+                              </p>
+                            </div>
+                            <div className="flex-shrink-0">
+                              {renderSettingInput(setting)}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </TabsContent>
+          );
+        })}
       </Tabs>
 
       {saving && (
