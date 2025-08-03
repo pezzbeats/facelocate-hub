@@ -53,7 +53,7 @@ const LocationManagement = () => {
     radius_meters: "50",
     working_hours_start: "09:00",
     working_hours_end: "18:00",
-    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+    timezone: "Asia/Kolkata"
   });
 
   useEffect(() => {
@@ -191,7 +191,7 @@ const LocationManagement = () => {
         radius_meters: "50",
         working_hours_start: "09:00",
         working_hours_end: "18:00",
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+        timezone: "Asia/Kolkata"
       });
       setShowAddDialog(false);
       setEditingLocation(null);
@@ -343,7 +343,7 @@ const LocationManagement = () => {
                 radius_meters: "50",
                 working_hours_start: "09:00",
                 working_hours_end: "18:00",
-                timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
+                timezone: "Asia/Kolkata"
               });
             }}>
               <Plus className="mr-2 h-4 w-4" />
