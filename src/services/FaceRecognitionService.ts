@@ -9,19 +9,45 @@ export class FaceRecognitionService {
     if (this.modelsLoaded) return;
 
     try {
-      // Load face-api.js models
-      await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-        faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-        faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
-        faceapi.nets.faceExpressionNet.loadFromUri('/models')
-      ]);
+      console.log('Starting to load face recognition models...');
+      
+      // Load models sequentially to avoid race conditions
+      console.log('Loading tiny face detector...');
+      await faceapi.nets.tinyFaceDetector.loadFromUri('/models');
+      
+      console.log('Loading face landmark model...');
+      await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+      
+      console.log('Loading face recognition model...');
+      await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+      
+      // Optional: face expression model
+      try {
+        console.log('Loading face expression model...');
+        await faceapi.nets.faceExpressionNet.loadFromUri('/models');
+      } catch (expError) {
+        console.warn('Face expression model failed to load (optional):', expError);
+      }
 
       this.modelsLoaded = true;
-      console.log('Face recognition models loaded successfully');
+      console.log('✅ All face recognition models loaded successfully');
     } catch (error) {
-      console.error('Failed to load face recognition models:', error);
-      throw new Error('Face recognition models failed to load. Please check model files.');
+      console.error('❌ Failed to load face recognition models:', error);
+      
+      // Try alternative loading method for debugging
+      try {
+        console.log('Attempting alternative model loading...');
+        const modelPath = window.location.origin + '/models';
+        await faceapi.nets.tinyFaceDetector.loadFromUri(modelPath);
+        await faceapi.nets.faceLandmark68Net.loadFromUri(modelPath);
+        await faceapi.nets.faceRecognitionNet.loadFromUri(modelPath);
+        
+        this.modelsLoaded = true;
+        console.log('✅ Models loaded with alternative method');
+      } catch (altError) {
+        console.error('❌ Alternative loading also failed:', altError);
+        throw new Error(`Face recognition models failed to load. Original error: ${error.message}`);
+      }
     }
   }
 
