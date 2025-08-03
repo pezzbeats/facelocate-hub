@@ -122,6 +122,94 @@ export type Database = {
           },
         ]
       }
+      breaks: {
+        Row: {
+          actual_duration_minutes: number | null
+          break_type: string
+          created_at: string
+          device_id: string
+          employee_id: string
+          end_event_id: string | null
+          id: string
+          location_id: string
+          planned_duration_minutes: number | null
+          start_event_id: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actual_duration_minutes?: number | null
+          break_type?: string
+          created_at?: string
+          device_id: string
+          employee_id: string
+          end_event_id?: string | null
+          id?: string
+          location_id: string
+          planned_duration_minutes?: number | null
+          start_event_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actual_duration_minutes?: number | null
+          break_type?: string
+          created_at?: string
+          device_id?: string
+          employee_id?: string
+          end_event_id?: string | null
+          id?: string
+          location_id?: string
+          planned_duration_minutes?: number | null
+          start_event_id?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "breaks_device_id_fkey"
+            columns: ["device_id"]
+            isOneToOne: false
+            referencedRelation: "devices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "breaks_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employee_current_status"
+            referencedColumns: ["employee_id"]
+          },
+          {
+            foreignKeyName: "breaks_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "breaks_end_event_id_fkey"
+            columns: ["end_event_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "breaks_location_id_fkey"
+            columns: ["location_id"]
+            isOneToOne: false
+            referencedRelation: "locations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "breaks_start_event_id_fkey"
+            columns: ["start_event_id"]
+            isOneToOne: false
+            referencedRelation: "attendance_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       device_heartbeats: {
         Row: {
           camera_status: string | null
@@ -547,9 +635,17 @@ export type Database = {
         Args: { emp_id: string; current_location_id: string }
         Returns: Json
       }
+      end_break: {
+        Args: { emp_id: string; location_id: string; device_id: string }
+        Returns: Json
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: string
+      }
+      get_employee_current_status_with_breaks: {
+        Args: { emp_id: string }
+        Returns: Json
       }
       is_active_admin: {
         Args: Record<PropertyKey, never>
@@ -577,6 +673,26 @@ export type Database = {
           device_code: string
           device_identifier: string
           location_id: string
+        }
+        Returns: Json
+      }
+      request_temporary_exit: {
+        Args: {
+          emp_id: string
+          location_id: string
+          device_id: string
+          exit_reason: string
+          estimated_duration_hours?: number
+        }
+        Returns: Json
+      }
+      start_break: {
+        Args: {
+          emp_id: string
+          location_id: string
+          device_id: string
+          break_type?: string
+          planned_duration?: number
         }
         Returns: Json
       }

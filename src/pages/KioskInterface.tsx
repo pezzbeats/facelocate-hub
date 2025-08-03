@@ -13,16 +13,22 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
-  LogOut
+  LogOut,
+  Coffee,
+  Utensils,
+  Timer,
+  AlertTriangle
 } from "lucide-react";
 import jusTrackLogo from "@/assets/justrack-logo.png";
 
 interface KioskState {
-  status: 'loading' | 'standby' | 'detecting' | 'recognizing' | 'confirming' | 'processing' | 'success' | 'error';
+  status: 'loading' | 'standby' | 'detecting' | 'recognizing' | 'confirming' | 'processing' | 'success' | 'error' | 'temp_exit_request' | 'break_request' | 'temp_exit_status' | 'break_return';
   currentEmployee: any | null;
   attendanceAction: any | null;
   errorMessage: string | null;
   countdown: number;
+  employeeStatus: any | null;
+  pendingRequest: any | null;
 }
 
 interface DeviceInfo {
@@ -46,7 +52,9 @@ const KioskInterface = () => {
     currentEmployee: null,
     attendanceAction: null,
     errorMessage: null,
-    countdown: 0
+    countdown: 0,
+    employeeStatus: null,
+    pendingRequest: null
   });
 
   useEffect(() => {
@@ -252,7 +260,59 @@ const KioskInterface = () => {
 
   const handleEmployeeRecognized = async (employee: any, confidence: number) => {
     try {
-      // Determine attendance action
+      // Check employee status including breaks and temp exits
+      const status = await getEmployeeStatus(employee.id);
+      
+      // Handle different employee statuses
+      if (status) {
+        const statusData = status as any;
+        
+        // If employee is on break, handle break return
+        if (statusData.status === 'on_break') {
+          await handleBreakReturn(employee);
+          return;
+        }
+        
+        // If employee is on temporary exit, handle return
+        if (statusData.status === 'temporary_exit') {
+          // Process return from temporary exit
+          const { error: returnError } = await supabase.rpc('process_attendance_action', {
+            emp_id: employee.id,
+            location_id: deviceInfo?.location_id,
+            device_id: deviceInfo?.id,
+            action_type: 'temp_return',
+            confidence_score: confidence,
+            temp_exit_id: statusData.temp_exit_id
+          });
+
+          if (returnError) throw returnError;
+
+          setKioskState(prev => ({
+            ...prev,
+            status: 'success',
+            currentEmployee: employee,
+            attendanceAction: { 
+              result: { message: `Welcome back from temporary exit! (${statusData.exit_reason})` }
+            }
+          }));
+
+          // Return to standby after 3 seconds
+          setTimeout(() => {
+            setKioskState({
+              status: 'standby',
+              currentEmployee: null,
+              attendanceAction: null,
+              errorMessage: null,
+              countdown: 0,
+              employeeStatus: null,
+              pendingRequest: null
+            });
+          }, 3000);
+          return;
+        }
+      }
+
+      // Determine regular attendance action
       const { data: actionData, error: actionError } = await supabase.rpc('determine_attendance_action', {
         emp_id: employee.id,
         current_location_id: deviceInfo?.location_id
@@ -265,6 +325,7 @@ const KioskInterface = () => {
         status: 'confirming',
         currentEmployee: employee,
         attendanceAction: actionData,
+        employeeStatus: status,
         countdown: 5
       }));
 
@@ -319,7 +380,9 @@ const KioskInterface = () => {
           currentEmployee: null,
           attendanceAction: null,
           errorMessage: null,
-          countdown: 0
+          countdown: 0,
+          employeeStatus: null,
+          pendingRequest: null
         });
       }, 3000);
 
@@ -348,13 +411,230 @@ const KioskInterface = () => {
       currentEmployee: null,
       attendanceAction: null,
       errorMessage: null,
-      countdown: 0
+      countdown: 0,
+      employeeStatus: null,
+      pendingRequest: null
     });
   };
 
   // Manual employee selection for fallback
   const handleManualMode = () => {
     window.location.href = '/kiosk/manual';
+  };
+
+  // Get employee current status including breaks and temp exits
+  const getEmployeeStatus = async (employeeId: string) => {
+    try {
+      const { data, error } = await supabase.rpc('get_employee_current_status_with_breaks', {
+        emp_id: employeeId
+      });
+      
+      if (error) throw error;
+      return data;
+    } catch (error) {
+      console.error('Error getting employee status:', error);
+      return null;
+    }
+  };
+
+  // Handle temporary exit request
+  const handleTempExitRequest = async (employee: any) => {
+    try {
+      const status = await getEmployeeStatus(employee.id);
+      
+      if ((status as any)?.status !== 'checked_in') {
+        setKioskState(prev => ({
+          ...prev,
+          status: 'error',
+          errorMessage: 'You must be checked in to request a temporary exit.'
+        }));
+        return;
+      }
+
+      setKioskState(prev => ({
+        ...prev,
+        status: 'temp_exit_request',
+        currentEmployee: employee,
+        employeeStatus: status
+      }));
+    } catch (error: any) {
+      setKioskState(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: error.message
+      }));
+    }
+  };
+
+  // Submit temporary exit request
+  const submitTempExitRequest = async (reason: string, estimatedHours: number) => {
+    try {
+      setKioskState(prev => ({ ...prev, status: 'processing' }));
+
+      const { data: result, error } = await supabase.rpc('request_temporary_exit', {
+        emp_id: kioskState.currentEmployee?.id,
+        location_id: deviceInfo?.location_id,
+        device_id: deviceInfo?.id,
+        exit_reason: reason,
+        estimated_duration_hours: estimatedHours
+      });
+
+      if (error) throw error;
+
+      setKioskState(prev => ({
+        ...prev,
+        status: 'temp_exit_status',
+        pendingRequest: result
+      }));
+
+      if ((result as any).status === 'approved') {
+        // Process the exit immediately
+        const { error: exitError } = await supabase.rpc('process_attendance_action', {
+          emp_id: kioskState.currentEmployee?.id,
+          location_id: deviceInfo?.location_id,
+          device_id: deviceInfo?.id,
+          action_type: 'temp_out',
+          confidence_score: 1.0,
+          notes: `Temporary exit: ${reason}`
+        });
+
+        if (exitError) throw exitError;
+      }
+
+      // Return to standby after showing status
+      setTimeout(() => {
+        setKioskState({
+          status: 'standby',
+          currentEmployee: null,
+          attendanceAction: null,
+          errorMessage: null,
+          countdown: 0,
+          employeeStatus: null,
+          pendingRequest: null
+        });
+      }, 5000);
+
+    } catch (error: any) {
+      setKioskState(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: error.message
+      }));
+    }
+  };
+
+  // Handle break request
+  const handleBreakRequest = async (employee: any) => {
+    try {
+      const status = await getEmployeeStatus(employee.id);
+      
+      if ((status as any)?.status !== 'checked_in') {
+        setKioskState(prev => ({
+          ...prev,
+          status: 'error',
+          errorMessage: 'You must be checked in to start a break.'
+        }));
+        return;
+      }
+
+      setKioskState(prev => ({
+        ...prev,
+        status: 'break_request',
+        currentEmployee: employee,
+        employeeStatus: status
+      }));
+    } catch (error: any) {
+      setKioskState(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: error.message
+      }));
+    }
+  };
+
+  // Submit break request
+  const submitBreakRequest = async (breakType: string, plannedDuration: number) => {
+    try {
+      setKioskState(prev => ({ ...prev, status: 'processing' }));
+
+      const { data: result, error } = await supabase.rpc('start_break', {
+        emp_id: kioskState.currentEmployee?.id,
+        location_id: deviceInfo?.location_id,
+        device_id: deviceInfo?.id,
+        break_type: breakType,
+        planned_duration: plannedDuration
+      });
+
+      if (error) throw error;
+
+      setKioskState(prev => ({
+        ...prev,
+        status: 'success',
+        attendanceAction: { result, message: (result as any).message }
+      }));
+
+      // Return to standby after 3 seconds
+      setTimeout(() => {
+        setKioskState({
+          status: 'standby',
+          currentEmployee: null,
+          attendanceAction: null,
+          errorMessage: null,
+          countdown: 0,
+          employeeStatus: null,
+          pendingRequest: null
+        });
+      }, 3000);
+
+    } catch (error: any) {
+      setKioskState(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: error.message
+      }));
+    }
+  };
+
+  // Handle break return
+  const handleBreakReturn = async (employee: any) => {
+    try {
+      setKioskState(prev => ({ ...prev, status: 'processing' }));
+
+      const { data: result, error } = await supabase.rpc('end_break', {
+        emp_id: employee.id,
+        location_id: deviceInfo?.location_id,
+        device_id: deviceInfo?.id
+      });
+
+      if (error) throw error;
+
+      setKioskState(prev => ({
+        ...prev,
+        status: 'break_return',
+        currentEmployee: employee,
+        attendanceAction: { result, message: (result as any).message }
+      }));
+
+      // Return to standby after 3 seconds
+      setTimeout(() => {
+        setKioskState({
+          status: 'standby',
+          currentEmployee: null,
+          attendanceAction: null,
+          errorMessage: null,
+          countdown: 0,
+          employeeStatus: null,
+          pendingRequest: null
+        });
+      }, 3000);
+
+    } catch (error: any) {
+      setKioskState(prev => ({
+        ...prev,
+        status: 'error',
+        errorMessage: error.message
+      }));
+    }
   };
 
   // Render different states
@@ -444,13 +724,40 @@ const KioskInterface = () => {
                     </div>
                   </div>
                 ) : (
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
                       Auto-confirming in {kioskState.countdown} seconds...
                     </p>
                     <Button onClick={confirmAction} className="w-full">
                       Confirm Now
                     </Button>
+                    
+                    {/* Show additional options for checked-in employees */}
+                    {(kioskState.employeeStatus as any)?.status === 'checked_in' && (kioskState.attendanceAction as any)?.action === 'clock_out' && (
+                      <div className="border-t pt-3 space-y-2">
+                        <p className="text-xs text-muted-foreground">Or choose another option:</p>
+                        <div className="flex gap-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleTempExitRequest(kioskState.currentEmployee)}
+                            className="flex-1"
+                          >
+                            <LogOut className="mr-1 h-3 w-3" />
+                            Step Out
+                          </Button>
+                          <Button 
+                            variant="outline" 
+                            size="sm"
+                            onClick={() => handleBreakRequest(kioskState.currentEmployee)}
+                            className="flex-1"
+                          >
+                            <Coffee className="mr-1 h-3 w-3" />
+                            Break
+                          </Button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
               </CardContent>
@@ -477,6 +784,182 @@ const KioskInterface = () => {
               <p className="text-sm text-muted-foreground mt-2">
                 {currentTime.toLocaleTimeString()}
               </p>
+            </div>
+          </div>
+        );
+
+      case 'temp_exit_request':
+        return (
+          <div className="text-center space-y-6">
+            <div className="flex items-center justify-center gap-4">
+              <LogOut className="h-16 w-16 text-primary" />
+              <div className="text-left">
+                <h2 className="text-2xl font-bold">{kioskState.currentEmployee?.full_name}</h2>
+                <p className="text-muted-foreground">Request Temporary Exit</p>
+              </div>
+            </div>
+            
+            <Card className="max-w-lg mx-auto">
+              <CardContent className="pt-6 space-y-4">
+                <h3 className="text-lg font-medium mb-4">Select exit reason and duration:</h3>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => submitTempExitRequest('Urgent Work', 2)}
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <AlertTriangle className="h-6 w-6" />
+                    <span className="text-sm">Urgent Work</span>
+                    <span className="text-xs text-muted-foreground">Auto-approved (2h)</span>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={() => submitTempExitRequest('Personal Emergency', 1)}
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <XCircle className="h-6 w-6" />
+                    <span className="text-sm">Emergency</span>
+                    <span className="text-xs text-muted-foreground">Auto-approved (1h)</span>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={() => submitTempExitRequest('Meeting Outside', 2)}
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <User className="h-6 w-6" />
+                    <span className="text-sm">Meeting</span>
+                    <span className="text-xs text-muted-foreground">Needs approval</span>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={() => submitTempExitRequest('Client Visit', 3)}
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <MapPin className="h-6 w-6" />
+                    <span className="text-sm">Client Visit</span>
+                    <span className="text-xs text-muted-foreground">Needs approval</span>
+                  </Button>
+                </div>
+
+                <Button variant="outline" onClick={cancelAction} className="w-full">
+                  Cancel
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 'break_request':
+        return (
+          <div className="text-center space-y-6">
+            <div className="flex items-center justify-center gap-4">
+              <Coffee className="h-16 w-16 text-primary" />
+              <div className="text-left">
+                <h2 className="text-2xl font-bold">{kioskState.currentEmployee?.full_name}</h2>
+                <p className="text-muted-foreground">Start Break</p>
+              </div>
+            </div>
+            
+            <Card className="max-w-lg mx-auto">
+              <CardContent className="pt-6 space-y-4">
+                <h3 className="text-lg font-medium mb-4">Select break type:</h3>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => submitBreakRequest('lunch', 60)}
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <Utensils className="h-6 w-6" />
+                    <span className="text-sm">Lunch Break</span>
+                    <span className="text-xs text-muted-foreground">60 minutes</span>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={() => submitBreakRequest('coffee', 15)}
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <Coffee className="h-6 w-6" />
+                    <span className="text-sm">Coffee Break</span>
+                    <span className="text-xs text-muted-foreground">15 minutes</span>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={() => submitBreakRequest('rest', 30)}
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <Timer className="h-6 w-6" />
+                    <span className="text-sm">Rest Break</span>
+                    <span className="text-xs text-muted-foreground">30 minutes</span>
+                  </Button>
+                  
+                  <Button 
+                    variant="outline" 
+                    onClick={() => submitBreakRequest('regular', 15)}
+                    className="h-20 flex flex-col gap-2"
+                  >
+                    <Clock className="h-6 w-6" />
+                    <span className="text-sm">Regular Break</span>
+                    <span className="text-xs text-muted-foreground">15 minutes</span>
+                  </Button>
+                </div>
+
+                <Button variant="outline" onClick={cancelAction} className="w-full">
+                  Cancel
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        );
+
+      case 'temp_exit_status':
+        return (
+          <div className="text-center space-y-6">
+            {(kioskState.pendingRequest as any)?.status === 'approved' ? (
+              <>
+                <CheckCircle2 className="h-20 w-20 text-success mx-auto" />
+                <div>
+                  <h2 className="text-2xl font-bold text-success mb-2">Exit Approved!</h2>
+                  <p className="text-lg">{(kioskState.pendingRequest as any)?.message}</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    You may leave now. Safe travels!
+                  </p>
+                </div>
+              </>
+            ) : (
+              <>
+                <Clock className="h-20 w-20 text-warning mx-auto" />
+                <div>
+                  <h2 className="text-2xl font-bold text-warning mb-2">Pending Approval</h2>
+                  <p className="text-lg">{(kioskState.pendingRequest as any)?.message}</p>
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Please wait for admin approval before leaving.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+        );
+
+      case 'break_return':
+        return (
+          <div className="text-center space-y-6">
+            <CheckCircle2 className="h-20 w-20 text-success mx-auto" />
+            <div>
+              <h2 className="text-2xl font-bold text-success mb-2">Welcome Back!</h2>
+              <p className="text-lg">{kioskState.attendanceAction?.message}</p>
+              <div className="text-sm text-muted-foreground mt-2">
+                <p>Break duration: {Math.round((kioskState.attendanceAction?.result as any)?.duration_minutes || 0)} minutes</p>
+                {(kioskState.attendanceAction?.result as any)?.exceeded && (
+                  <p className="text-warning">Break time exceeded planned duration</p>
+                )}
+              </div>
             </div>
           </div>
         );
