@@ -277,63 +277,63 @@ const AdminDashboard = () => {
 
       <main className="container mx-auto px-3 lg:px-6 py-4 lg:py-8">
         <Tabs value={activeTab} onValueChange={(value) => startTransition(() => setActiveTab(value))} className="space-y-8">
-          <div className="flex items-center justify-center overflow-x-auto">
-            <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8 min-w-fit h-12 bg-muted/30 border border-border/50 backdrop-blur-sm gap-1">
+          <div className="w-full overflow-x-auto scrollbar-hide">
+            <TabsList className="inline-flex h-14 items-center justify-start w-max min-w-full bg-muted/30 border border-border/50 backdrop-blur-sm p-1 gap-1">
               <TabsTrigger 
                 value="dashboard" 
-                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex flex-col items-center gap-1 min-w-[80px] h-12 text-xs font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all px-3 py-2"
               >
-                <BarChart3 className="h-4 w-4 lg:h-5 lg:w-5" />
-                <span className="hidden sm:inline">Dashboard</span>
+                <BarChart3 className="h-5 w-5" />
+                <span className="leading-none">Dashboard</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="employees" 
-                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex flex-col items-center gap-1 min-w-[80px] h-12 text-xs font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all px-3 py-2"
               >
-                <Users className="h-4 w-4 lg:h-5 lg:w-5" />
-                <span className="hidden sm:inline">Employees</span>
+                <Users className="h-5 w-5" />
+                <span className="leading-none">Employees</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="locations" 
-                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex flex-col items-center gap-1 min-w-[80px] h-12 text-xs font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all px-3 py-2"
               >
-                <Building2 className="h-4 w-4 lg:h-5 lg:w-5" />
-                <span className="hidden sm:inline">Locations</span>
+                <Building2 className="h-5 w-5" />
+                <span className="leading-none">Locations</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="devices" 
-                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex flex-col items-center gap-1 min-w-[80px] h-12 text-xs font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all px-3 py-2"
               >
-                <Monitor className="h-4 w-4 lg:h-5 lg:w-5" />
-                <span className="hidden sm:inline">Devices</span>
+                <Monitor className="h-5 w-5" />
+                <span className="leading-none">Devices</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="reports" 
-                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex flex-col items-center gap-1 min-w-[80px] h-12 text-xs font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all px-3 py-2"
               >
-                <FileText className="h-4 w-4 lg:h-5 lg:w-5" />
-                <span className="hidden lg:inline">Reports</span>
+                <FileText className="h-5 w-5" />
+                <span className="leading-none">Reports</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="admin" 
-                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex flex-col items-center gap-1 min-w-[80px] h-12 text-xs font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all px-3 py-2"
               >
-                <Settings className="h-4 w-4 lg:h-5 lg:w-5" />
-                <span className="hidden lg:inline">Admin</span>
+                <Settings className="h-5 w-5" />
+                <span className="leading-none">Settings</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="notifications" 
-                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex flex-col items-center gap-1 min-w-[80px] h-12 text-xs font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all px-3 py-2"
               >
-                <Bell className="h-4 w-4 lg:h-5 lg:w-5" />
-                <span className="hidden lg:inline">Notifications</span>
+                <Bell className="h-5 w-5" />
+                <span className="leading-none">Notifications</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="alerts" 
-                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex flex-col items-center gap-1 min-w-[80px] h-12 text-xs font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all px-3 py-2"
               >
-                <AlertTriangle className="h-4 w-4 lg:h-5 lg:w-5" />
-                <span className="hidden lg:inline">Alerts</span>
+                <AlertTriangle className="h-5 w-5" />
+                <span className="leading-none">Alerts</span>
               </TabsTrigger>
             </TabsList>
           </div>

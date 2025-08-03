@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Custom scrollbar utilities */
+@layer utilities {
+  .scrollbar-hide {
+    /* IE and Edge */
+    -ms-overflow-style: none;
+    /* Firefox */
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    /* WebKit */
+    display: none;
+  }
+}
+
 /* JusTrack Simplified Design System - Professional Attendance Kiosk Theme
 All colors MUST be HSL. This design system focuses on professional, high-contrast colors
 suitable for various lighting conditions in industrial/office environments.
