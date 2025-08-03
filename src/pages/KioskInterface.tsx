@@ -33,13 +33,17 @@ import {
 import jusTrackLogo from "@/assets/justrack-logo.png";
 
 interface KioskState {
-  status: 'loading' | 'standby' | 'detecting' | 'recognizing' | 'confirming' | 'processing' | 'success' | 'error' | 'temp_exit_request' | 'break_request' | 'temp_exit_status' | 'break_return';
+  status: 'loading' | 'standby' | 'detecting' | 'recognizing' | 'confirming' | 'processing' | 'success' | 'error' | 'temp_exit_request' | 'break_request' | 'temp_exit_status' | 'break_return' | 'temp_exit_reasons' | 'temp_exit_duration' | 'break_types' | 'temp_exit_pending' | 'temp_exit_approved' | 'temp_exit_denied';
   currentEmployee: any | null;
   attendanceAction: any | null;
   errorMessage: string | null;
   countdown: number;
   employeeStatus: any | null;
   pendingRequest: any | null;
+  tempExitRequest: any | null;
+  selectedBreakType: string | null;
+  selectedTempExitReason: string | null;
+  selectedDuration: number | null;
 }
 
 interface DeviceInfo {
@@ -75,6 +79,12 @@ const KioskInterface = () => {
   const [voiceEnabled, setVoiceEnabled] = useState(true);
   const [lastHeartbeat, setLastHeartbeat] = useState<Date>(new Date());
   const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+  const [kioskState, setKioskState] = useState<KioskState['status']>('standby');
+  const [tempExitRequest, setTempExitRequest] = useState<any>(null);
+  const [selectedBreakType, setSelectedBreakType] = useState<string | null>(null);
+  const [selectedTempExitReason, setSelectedTempExitReason] = useState<string | null>(null);
+  const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
+  const [employeeStatus, setEmployeeStatus] = useState<any>(null);
 
   // Network status monitoring
   useEffect(() => {
@@ -372,6 +382,7 @@ const KioskInterface = () => {
     try {
       // Check employee status including breaks and temp exits
       const status = await getEmployeeStatus(employee.id);
+      setEmployeeStatus(status);
       
       // Handle different employee statuses
       if (status) {
@@ -402,10 +413,13 @@ const KioskInterface = () => {
             result: { message: `Welcome back from temporary exit! (${statusData.exit_reason})` }
           });
 
+          speakMessage(`Welcome back from temporary exit!`);
+
           // Return to standby after 3 seconds
           setTimeout(() => {
             setCurrentEmployee(null);
             setAttendanceAction(null);
+            setEmployeeStatus(null);
           }, 3000);
           return;
         }
@@ -422,6 +436,12 @@ const KioskInterface = () => {
       const action = actionResult as any;
       setCurrentEmployee(employee);
       setAttendanceAction(action);
+
+      // Show action options for checked-in employees
+      if (action.action === 'clock_out' || (status && (status as any).status === 'checked_in')) {
+        setKioskState('standby');
+        return; // Don't auto-process, show options instead
+      }
 
       // Speak the message
       speakMessage(action.message || "Attendance recorded successfully!");
@@ -440,11 +460,135 @@ const KioskInterface = () => {
       setTimeout(() => {
         setCurrentEmployee(null);
         setAttendanceAction(null);
+        setEmployeeStatus(null);
       }, 3000);
 
     } catch (error: any) {
       setError(error.message);
     }
+  };
+
+  // Temporary Exit Functions
+  const handleTempExitRequest = async () => {
+    if (!currentEmployee) return;
+    setKioskState('temp_exit_reasons');
+  };
+
+  const selectTempExitReason = (reason: string) => {
+    setSelectedTempExitReason(reason);
+    setKioskState('temp_exit_duration');
+  };
+
+  const selectTempExitDuration = (duration: number) => {
+    setSelectedDuration(duration);
+    submitTempExitRequest();
+  };
+
+  const submitTempExitRequest = async () => {
+    if (!currentEmployee || !selectedTempExitReason || !selectedDuration) return;
+
+    try {
+      setKioskState('processing');
+      
+      const { data: result, error } = await supabase.rpc('request_temporary_exit', {
+        emp_id: currentEmployee.id,
+        location_id: device?.location_id,
+        device_id: device?.id,
+        exit_reason: selectedTempExitReason,
+        estimated_duration_hours: selectedDuration
+      });
+
+      if (error) throw error;
+
+      setTempExitRequest(result);
+      
+      if ((result as any).status === 'approved') {
+        setKioskState('temp_exit_approved');
+        speakMessage('Exit approved. You may leave now.');
+        
+        // Process the exit
+        await supabase.rpc('process_attendance_action', {
+          emp_id: currentEmployee.id,
+          location_id: device?.location_id,
+          device_id: device?.id,
+          action_type: 'temp_out',
+          confidence_score: 0.95
+        });
+      } else {
+        setKioskState('temp_exit_pending');
+        speakMessage('Exit request submitted for approval.');
+      }
+
+      setTimeout(() => {
+        setCurrentEmployee(null);
+        setTempExitRequest(null);
+        setSelectedTempExitReason(null);
+        setSelectedDuration(null);
+        setKioskState('standby');
+      }, 5000);
+
+    } catch (error: any) {
+      setError(error.message);
+      setKioskState('standby');
+    }
+  };
+
+  // Break Management Functions
+  const handleBreakRequest = async () => {
+    if (!currentEmployee) return;
+    setKioskState('break_types');
+  };
+
+  const selectBreakType = async (breakType: string) => {
+    if (!currentEmployee) return;
+
+    try {
+      setKioskState('processing');
+      setSelectedBreakType(breakType);
+
+      const duration = breakType === 'Lunch Break' ? 60 : 
+                     breakType === 'Coffee Break' ? 15 :
+                     breakType === 'Rest Break' ? 10 :
+                     breakType === 'Prayer Break' ? 15 : 15;
+
+      const { data: result, error } = await supabase.rpc('start_break', {
+        emp_id: currentEmployee.id,
+        location_id: device?.location_id,
+        device_id: device?.id,
+        break_type: breakType.toLowerCase().replace(' ', '_'),
+        planned_duration: duration
+      });
+
+      if (error) throw error;
+
+      speakMessage(`${breakType} started. Enjoy your break!`);
+      
+      setAttendanceAction({ 
+        result: { message: `${breakType} started successfully. Enjoy your break!` }
+      });
+
+      setTimeout(() => {
+        setCurrentEmployee(null);
+        setAttendanceAction(null);
+        setSelectedBreakType(null);
+        setKioskState('standby');
+      }, 3000);
+
+    } catch (error: any) {
+      setError(error.message);
+      setKioskState('standby');
+    }
+  };
+
+  const resetKioskState = () => {
+    setCurrentEmployee(null);
+    setAttendanceAction(null);
+    setTempExitRequest(null);
+    setSelectedTempExitReason(null);
+    setSelectedDuration(null);
+    setSelectedBreakType(null);
+    setEmployeeStatus(null);
+    setKioskState('standby');
   };
 
   if (isLoading) {
@@ -539,8 +683,145 @@ const KioskInterface = () => {
               )}
             </div>
             
-            {/* Status Display */}
-            {currentEmployee?.recognizing ? (
+            {/* Dynamic Status Display Based on Kiosk State */}
+            {kioskState === 'processing' ? (
+              <div className="space-y-6">
+                <Loader2 className="h-20 w-20 animate-spin mx-auto text-primary" />
+                <div>
+                  <h2 className="text-4xl font-bold mb-2">Processing...</h2>
+                  <p className="text-xl text-muted-foreground">Please wait a moment</p>
+                </div>
+              </div>
+            ) : kioskState === 'temp_exit_reasons' ? (
+              <div className="space-y-6">
+                <LogOut className="h-20 w-20 mx-auto text-orange-500" />
+                <div>
+                  <h2 className="text-4xl font-bold mb-4">Temporary Exit Request</h2>
+                  <p className="text-xl text-muted-foreground mb-6">Please select your reason:</p>
+                  <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
+                    {[
+                      'Urgent Work',
+                      'Personal Emergency', 
+                      'Meeting Outside',
+                      'Client Visit',
+                      'Lunch Break',
+                      'Other'
+                    ].map((reason) => (
+                      <Button
+                        key={reason}
+                        variant="outline"
+                        size="lg"
+                        className="h-16 text-lg font-semibold"
+                        onClick={() => selectTempExitReason(reason)}
+                      >
+                        {reason}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    className="mt-6"
+                    onClick={resetKioskState}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : kioskState === 'temp_exit_duration' ? (
+              <div className="space-y-6">
+                <Timer className="h-20 w-20 mx-auto text-orange-500" />
+                <div>
+                  <h2 className="text-4xl font-bold mb-4">Duration Estimate</h2>
+                  <p className="text-xl text-muted-foreground mb-2">Reason: {selectedTempExitReason}</p>
+                  <p className="text-lg text-muted-foreground mb-6">How long will you be away?</p>
+                  <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
+                    {[
+                      { label: '15 minutes', value: 0.25 },
+                      { label: '30 minutes', value: 0.5 },
+                      { label: '1 hour', value: 1 },
+                      { label: '2 hours', value: 2 }
+                    ].map(({ label, value }) => (
+                      <Button
+                        key={value}
+                        variant="outline"
+                        size="lg"
+                        className="h-16 text-lg font-semibold"
+                        onClick={() => selectTempExitDuration(value)}
+                      >
+                        {label}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    className="mt-6"
+                    onClick={() => setKioskState('temp_exit_reasons')}
+                  >
+                    Back
+                  </Button>
+                </div>
+              </div>
+            ) : kioskState === 'temp_exit_pending' ? (
+              <div className="space-y-6">
+                <Clock className="h-20 w-20 mx-auto text-orange-500" />
+                <div>
+                  <h2 className="text-4xl font-bold mb-4">Request Submitted</h2>
+                  <p className="text-xl text-muted-foreground">Waiting for admin approval...</p>
+                  <div className="mt-4 p-4 bg-muted/20 rounded-lg">
+                    <p><strong>Reason:</strong> {selectedTempExitReason}</p>
+                    <p><strong>Duration:</strong> {selectedDuration} hours</p>
+                  </div>
+                </div>
+              </div>
+            ) : kioskState === 'temp_exit_approved' ? (
+              <div className="space-y-6">
+                <CheckCircle2 className="h-20 w-20 mx-auto text-success" />
+                <div>
+                  <h2 className="text-4xl font-bold text-success mb-4">Exit Approved!</h2>
+                  <p className="text-xl text-muted-foreground">You may leave now</p>
+                  <div className="mt-4 p-4 bg-muted/20 rounded-lg">
+                    <p><strong>Reason:</strong> {selectedTempExitReason}</p>
+                    <p><strong>Duration:</strong> {selectedDuration} hours</p>
+                    <p><strong>Return by:</strong> {new Date(Date.now() + (selectedDuration || 0) * 60 * 60 * 1000).toLocaleTimeString()}</p>
+                  </div>
+                </div>
+              </div>
+            ) : kioskState === 'break_types' ? (
+              <div className="space-y-6">
+                <Coffee className="h-20 w-20 mx-auto text-blue-500" />
+                <div>
+                  <h2 className="text-4xl font-bold mb-4">Start Break</h2>
+                  <p className="text-xl text-muted-foreground mb-6">Select break type:</p>
+                  <div className="grid grid-cols-2 gap-4 max-w-lg mx-auto">
+                    {[
+                      { type: 'Lunch Break', duration: '30-60 min', icon: Utensils },
+                      { type: 'Coffee Break', duration: '15 min', icon: Coffee },
+                      { type: 'Rest Break', duration: '10 min', icon: Timer },
+                      { type: 'Prayer Break', duration: '15 min', icon: Clock }
+                    ].map(({ type, duration, icon: Icon }) => (
+                      <Button
+                        key={type}
+                        variant="outline"
+                        size="lg"
+                        className="h-20 text-lg font-semibold flex flex-col gap-1"
+                        onClick={() => selectBreakType(type)}
+                      >
+                        <Icon className="h-6 w-6" />
+                        <span>{type}</span>
+                        <span className="text-sm text-muted-foreground">({duration})</span>
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    className="mt-6"
+                    onClick={resetKioskState}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : currentEmployee?.recognizing ? (
               <div className="space-y-6">
                 <Loader2 className="h-20 w-20 animate-spin mx-auto text-primary" />
                 <div>
@@ -572,6 +853,104 @@ const KioskInterface = () => {
                   )}
                 </div>
               </div>
+            ) : currentEmployee && attendanceAction && !attendanceAction?.result && !attendanceAction?.message ? (
+              // Employee is checked in - show action options
+              <div className="space-y-6">
+                <User className="h-20 w-20 mx-auto text-primary" />
+                <div>
+                  <div className="mb-6 p-6 bg-muted/20 rounded-lg">
+                    <h2 className="text-3xl font-bold mb-2">{currentEmployee.full_name}</h2>
+                    <p className="text-lg text-muted-foreground mb-1">{currentEmployee.employee_code}</p>
+                    <Badge variant="outline" className="text-lg px-4 py-2">
+                      {employeeStatus?.status === 'checked_in' ? 'Checked In' : 
+                       employeeStatus?.status === 'on_break' ? 'On Break' :
+                       employeeStatus?.status === 'temporary_exit' ? 'Temporary Exit' : 'Available'}
+                    </Badge>
+                    {employeeStatus?.since && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Since: {new Date(employeeStatus.since).toLocaleTimeString()}
+                      </p>
+                    )}
+                  </div>
+                  
+                  {attendanceAction?.action === 'clock_out' || employeeStatus?.status === 'checked_in' ? (
+                    <div>
+                      <h3 className="text-2xl font-semibold mb-6">What would you like to do?</h3>
+                      <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
+                        <Button
+                          size="lg"
+                          className="h-16 text-lg font-semibold"
+                          onClick={() => {
+                            // Process clock out
+                            supabase.rpc('process_attendance_action', {
+                              emp_id: currentEmployee.id,
+                              location_id: device?.location_id,
+                              device_id: device?.id,
+                              action_type: 'clock_out',
+                              confidence_score: 0.95
+                            }).then(() => {
+                              setAttendanceAction({ result: { message: 'Successfully clocked out. See you tomorrow!' } });
+                              speakMessage('Successfully clocked out. See you tomorrow!');
+                              setTimeout(resetKioskState, 3000);
+                            });
+                          }}
+                        >
+                          <LogOut className="mr-2 h-5 w-5" />
+                          Clock Out
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="h-16 text-lg font-semibold"
+                          onClick={handleTempExitRequest}
+                        >
+                          <LogOut className="mr-2 h-5 w-5" />
+                          Need to Step Out?
+                        </Button>
+                        
+                        <Button
+                          variant="outline"
+                          size="lg"
+                          className="h-16 text-lg font-semibold"
+                          onClick={handleBreakRequest}
+                        >
+                          <Coffee className="mr-2 h-5 w-5" />
+                          Start Break
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xl text-muted-foreground mb-4">
+                        {attendanceAction?.message || 'Ready for your next action'}
+                      </p>
+                      <Button
+                        size="lg"
+                        className="h-16 text-lg font-semibold px-8"
+                        onClick={() => {
+                          // Process the recommended action
+                          supabase.rpc('process_attendance_action', {
+                            emp_id: currentEmployee.id,
+                            location_id: device?.location_id,
+                            device_id: device?.id,
+                            action_type: attendanceAction.action,
+                            confidence_score: 0.95
+                          }).then(() => {
+                            setAttendanceAction({ result: { message: attendanceAction.message } });
+                            speakMessage(attendanceAction.message);
+                            setTimeout(resetKioskState, 3000);
+                          });
+                        }}
+                      >
+                        {attendanceAction?.action === 'clock_in' && 'Clock In'}
+                        {attendanceAction?.action === 'location_transfer' && 'Transfer Here'}
+                        {attendanceAction?.action === 'clock_out' && 'Clock Out'}
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              </div>
             ) : (
               <div className="space-y-6">
                 <Camera className="h-20 w-20 mx-auto text-primary animate-pulse" />
@@ -588,8 +967,8 @@ const KioskInterface = () => {
               </div>
             )}
 
-            {/* Emergency Actions */}
-            {!currentEmployee && !isProcessing && (
+            {/* Admin Access - Only show when in standby */}
+            {!currentEmployee && !isProcessing && kioskState === 'standby' && (
               <div className="flex justify-center gap-4 pt-8">
                 <Button
                   variant="outline"
