@@ -248,11 +248,16 @@ const SystemSettings = () => {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="flex w-full overflow-x-auto scrollbar-hide p-1 bg-muted rounded-md">
           {categories.map(category => (
-            <TabsTrigger key={category} value={category} className="flex items-center gap-2">
+            <TabsTrigger 
+              key={category} 
+              value={category} 
+              className="flex items-center gap-2 px-4 py-2 whitespace-nowrap min-w-fit shrink-0 text-sm font-medium rounded-sm data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm"
+            >
               {getCategoryIcon(category)}
-              <span className="capitalize">{category.replace('_', ' ')}</span>
+              <span className="capitalize hidden sm:inline">{category.replace('_', ' ')}</span>
+              <span className="capitalize sm:hidden">{category.replace('_', ' ').split(' ')[0]}</span>
             </TabsTrigger>
           ))}
         </TabsList>
