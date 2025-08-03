@@ -495,8 +495,11 @@ export type Database = {
           location_code: string
           location_name: string
           longitude: number | null
+          radius_meters: number | null
           timezone: string | null
           updated_at: string | null
+          working_hours_end: string | null
+          working_hours_start: string | null
         }
         Insert: {
           address?: string | null
@@ -508,8 +511,11 @@ export type Database = {
           location_code: string
           location_name: string
           longitude?: number | null
+          radius_meters?: number | null
           timezone?: string | null
           updated_at?: string | null
+          working_hours_end?: string | null
+          working_hours_start?: string | null
         }
         Update: {
           address?: string | null
@@ -521,8 +527,11 @@ export type Database = {
           location_code?: string
           location_name?: string
           longitude?: number | null
+          radius_meters?: number | null
           timezone?: string | null
           updated_at?: string | null
+          working_hours_end?: string | null
+          working_hours_start?: string | null
         }
         Relationships: []
       }
