@@ -13,6 +13,9 @@ import TemporaryExitManagement from "@/components/TemporaryExitManagement";
 import SystemSettings from "@/components/SystemSettings";
 import UserManagement from "@/components/UserManagement";
 import SystemMonitoring from "@/components/SystemMonitoring";
+import NotificationCenter from "@/components/NotificationCenter";
+import NotificationManagement from "@/components/NotificationManagement";
+import SystemAlerts from "@/components/SystemAlerts";
 import { 
   Users, 
   MapPin, 
@@ -31,7 +34,9 @@ import {
   Building2,
   BarChart3,
   LogOut,
-  FileText
+  FileText,
+  Bell,
+  AlertTriangle
 } from "lucide-react";
 import jusTrackLogo from "@/assets/justrack-logo.png";
 import { supabase } from "@/integrations/supabase/client";
@@ -250,6 +255,7 @@ const AdminDashboard = () => {
                   <p className="text-xs text-muted-foreground">Administrator</p>
                 </div>
               </div>
+              <NotificationCenter />
               <Button 
                 variant="outline" 
                 onClick={handleLogout}
@@ -266,7 +272,7 @@ const AdminDashboard = () => {
       <main className="container mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <div className="flex items-center justify-center">
-            <TabsList className="grid w-full grid-cols-6 max-w-5xl h-12 bg-muted/30 border border-border/50 backdrop-blur-sm">
+            <TabsList className="grid w-full grid-cols-8 max-w-6xl h-12 bg-muted/30 border border-border/50 backdrop-blur-sm">
               <TabsTrigger 
                 value="dashboard" 
                 className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
@@ -308,6 +314,20 @@ const AdminDashboard = () => {
               >
                 <Settings className="h-4 w-4" />
                 Admin
+              </TabsTrigger>
+              <TabsTrigger 
+                value="notifications" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <Bell className="h-4 w-4" />
+                Notifications
+              </TabsTrigger>
+              <TabsTrigger 
+                value="alerts" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <AlertTriangle className="h-4 w-4" />
+                Alerts
               </TabsTrigger>
             </TabsList>
           </div>
@@ -538,6 +558,16 @@ const AdminDashboard = () => {
               <SystemMonitoring />
             </TabsContent>
           </Tabs>
+        </TabsContent>
+
+        {/* Notifications Tab */}
+        <TabsContent value="notifications" className="space-y-6">
+          <NotificationManagement />
+        </TabsContent>
+
+        {/* System Alerts Tab */}
+        <TabsContent value="alerts" className="space-y-6">
+          <SystemAlerts />
         </TabsContent>
       </Tabs>
       </main>
