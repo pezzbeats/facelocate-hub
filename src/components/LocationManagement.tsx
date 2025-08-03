@@ -7,9 +7,15 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Plus, Search, Edit, Trash2, MapPin, Monitor } from "lucide-react";
+import { useAsyncOperation } from "@/hooks/useAsyncOperation";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import ErrorMessage from "@/components/ErrorMessage";
+import { Plus, Search, Edit, Trash2, MapPin, Monitor, Filter, MoreVertical, Download, Archive, Users } from "lucide-react";
 
 interface Location {
   id: string;
@@ -29,12 +35,15 @@ interface Location {
 
 const LocationManagement = () => {
   const [locations, setLocations] = useState<Location[]>([]);
-  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [editingLocation, setEditingLocation] = useState<Location | null>(null);
   const [gettingLocation, setGettingLocation] = useState(false);
+  const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("name");
   const { toast } = useToast();
+  const { loading, error, execute } = useAsyncOperation<Location[]>();
 
   const [formData, setFormData] = useState({
     location_name: "",
@@ -52,7 +61,7 @@ const LocationManagement = () => {
   }, []);
 
   const loadLocations = async () => {
-    try {
+    return execute(async () => {
       // Query locations with device count
       const { data: locationsData, error: locationsError } = await supabase
         .from('locations')
@@ -78,15 +87,8 @@ const LocationManagement = () => {
       );
       
       setLocations(locationsWithDeviceCount);
-    } catch (error: any) {
-      toast({
-        title: "Error Loading Locations",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+      return locationsWithDeviceCount;
+    });
   };
 
   const generateLocationCode = async () => {
@@ -145,9 +147,8 @@ const LocationManagement = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
 
-    try {
+    execute(async () => {
       const locationData = {
         location_name: formData.location_name,
         address: formData.address,
@@ -167,11 +168,6 @@ const LocationManagement = () => {
           .eq('id', editingLocation.id);
 
         if (error) throw error;
-
-        toast({
-          title: "Location Updated",
-          description: "Location information has been updated successfully.",
-        });
       } else {
         // Create new location
         const locationCode = await generateLocationCode();
@@ -184,11 +180,6 @@ const LocationManagement = () => {
           });
 
         if (error) throw error;
-
-        toast({
-          title: "Location Added",
-          description: `Location ${locationCode} has been added successfully.`,
-        });
       }
 
       // Reset form and reload data
@@ -204,16 +195,11 @@ const LocationManagement = () => {
       });
       setShowAddDialog(false);
       setEditingLocation(null);
-      loadLocations();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+      const result = await loadLocations();
+      return result || [];
+    }, {
+      successMessage: editingLocation ? "Location updated successfully" : "Location added successfully"
+    });
   };
 
   const handleEdit = (location: Location) => {
@@ -259,11 +245,84 @@ const LocationManagement = () => {
     }
   };
 
-  const filteredLocations = locations.filter(location =>
-    location.location_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    location.location_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    location.address.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Bulk actions
+  const handleBulkStatusChange = async (status: boolean) => {
+    if (selectedLocations.length === 0) return;
+
+    execute(async () => {
+      const { error } = await supabase
+        .from('locations')
+        .update({ is_active: status })
+        .in('id', selectedLocations);
+
+      if (error) throw error;
+
+      setSelectedLocations([]);
+      const result = await loadLocations();
+      return result || [];
+    }, {
+      successMessage: `${selectedLocations.length} locations ${status ? 'activated' : 'deactivated'} successfully`
+    });
+  };
+
+  const handleSelectAll = () => {
+    if (selectedLocations.length === filteredLocations.length) {
+      setSelectedLocations([]);
+    } else {
+      setSelectedLocations(filteredLocations.map(loc => loc.id));
+    }
+  };
+
+  const exportLocations = () => {
+    const headers = ['Location Code', 'Name', 'Address', 'Devices', 'Status', 'Created Date'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredLocations.map(loc => [
+        loc.location_code,
+        `"${loc.location_name}"`,
+        `"${loc.address}"`,
+        loc.device_count || 0,
+        loc.is_active ? 'Active' : 'Inactive',
+        new Date(loc.created_at).toLocaleDateString()
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `locations_${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Filtering and sorting
+  const filteredLocations = locations
+    .filter(location => {
+      const matchesSearch = location.location_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        location.location_code.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        location.address.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesStatus = statusFilter === "all" || 
+        (statusFilter === "active" && location.is_active) ||
+        (statusFilter === "inactive" && !location.is_active);
+      
+      return matchesSearch && matchesStatus;
+    })
+    .sort((a, b) => {
+      switch (sortBy) {
+        case "name":
+          return a.location_name.localeCompare(b.location_name);
+        case "code":
+          return a.location_code.localeCompare(b.location_code);
+        case "devices":
+          return (b.device_count || 0) - (a.device_count || 0);
+        case "date":
+          return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        default:
+          return 0;
+      }
+    });
 
   return (
     <div className="space-y-6">
@@ -420,9 +479,57 @@ const LocationManagement = () => {
         </Dialog>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <MapPin className="h-4 w-4 text-muted-foreground" />
+              <div className="ml-2">
+                <p className="text-sm font-medium leading-none">Total Locations</p>
+                <p className="text-2xl font-bold">{locations.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <Monitor className="h-4 w-4 text-success" />
+              <div className="ml-2">
+                <p className="text-sm font-medium leading-none">Active</p>
+                <p className="text-2xl font-bold">{locations.filter(l => l.is_active).length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <Archive className="h-4 w-4 text-muted-foreground" />
+              <div className="ml-2">
+                <p className="text-sm font-medium leading-none">Inactive</p>
+                <p className="text-2xl font-bold">{locations.filter(l => !l.is_active).length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <Users className="h-4 w-4 text-primary" />
+              <div className="ml-2">
+                <p className="text-sm font-medium leading-none">Total Devices</p>
+                <p className="text-2xl font-bold">{locations.reduce((sum, l) => sum + (l.device_count || 0), 0)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-4">
+          <div className="flex flex-col lg:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -432,25 +539,104 @@ const LocationManagement = () => {
                 className="pl-10"
               />
             </div>
+            <div className="flex gap-2">
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="inactive">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={setSortBy}>
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="name">Sort by Name</SelectItem>
+                  <SelectItem value="code">Sort by Code</SelectItem>
+                  <SelectItem value="devices">Sort by Devices</SelectItem>
+                  <SelectItem value="date">Sort by Date</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={exportLocations}>
+                <Download className="mr-2 h-4 w-4" />
+                Export
+              </Button>
+            </div>
           </div>
+          
+          {selectedLocations.length > 0 && (
+            <div className="flex items-center justify-between bg-muted/50 p-3 rounded-lg">
+              <span className="text-sm font-medium">
+                {selectedLocations.length} location(s) selected
+              </span>
+              <div className="flex gap-2">
+                <Button size="sm" variant="outline" onClick={() => handleBulkStatusChange(true)}>
+                  Activate
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => handleBulkStatusChange(false)}>
+                  Deactivate
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setSelectedLocations([])}>
+                  Clear
+                </Button>
+              </div>
+            </div>
+          )}
         </CardHeader>
         <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Location Code</TableHead>
-                <TableHead>Name</TableHead>
-                <TableHead>Address</TableHead>
-                <TableHead>Devices</TableHead>
-                <TableHead>Working Hours</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredLocations.map((location) => (
-                <TableRow key={location.id}>
-                  <TableCell className="font-medium">{location.location_code}</TableCell>
+          {loading ? (
+            <LoadingSpinner size="lg" message="Loading locations..." />
+          ) : error ? (
+            <ErrorMessage 
+              message={error} 
+              onRetry={loadLocations}
+            />
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">
+                    <Checkbox
+                      checked={selectedLocations.length === filteredLocations.length && filteredLocations.length > 0}
+                      onCheckedChange={handleSelectAll}
+                    />
+                  </TableHead>
+                  <TableHead>Location Code</TableHead>
+                  <TableHead>Name</TableHead>
+                  <TableHead>Address</TableHead>
+                  <TableHead>Devices</TableHead>
+                  <TableHead>Working Hours</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredLocations.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      No locations found matching your criteria
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  filteredLocations.map((location) => (
+                    <TableRow key={location.id}>
+                      <TableCell>
+                        <Checkbox
+                          checked={selectedLocations.includes(location.id)}
+                          onCheckedChange={(checked) => {
+                            if (checked) {
+                              setSelectedLocations([...selectedLocations, location.id]);
+                            } else {
+                              setSelectedLocations(selectedLocations.filter(id => id !== location.id));
+                            }
+                          }}
+                        />
+                      </TableCell>
+                      <TableCell className="font-medium">{location.location_code}</TableCell>
                   <TableCell>
                     <div>
                       <div className="font-medium">{location.location_name}</div>
@@ -501,10 +687,12 @@ const LocationManagement = () => {
                       </Button>
                     </div>
                   </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
     </div>

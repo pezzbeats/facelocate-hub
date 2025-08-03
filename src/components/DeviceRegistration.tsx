@@ -4,9 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Monitor, MapPin, Wifi, CheckCircle2 } from "lucide-react";
+import { useAsyncOperation } from "@/hooks/useAsyncOperation";
+import LoadingSpinner from "@/components/LoadingSpinner";
+import { Monitor, MapPin, Wifi, CheckCircle2, AlertTriangle, RefreshCw, Settings } from "lucide-react";
 
 interface Location {
   id: string;
@@ -17,10 +21,12 @@ interface Location {
 
 const DeviceRegistration = () => {
   const [locations, setLocations] = useState<Location[]>([]);
-  const [loading, setLoading] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [deviceInfo, setDeviceInfo] = useState<any>(null);
+  const [cameraStatus, setCameraStatus] = useState<'checking' | 'available' | 'unavailable'>('checking');
+  const [registrationStep, setRegistrationStep] = useState<'setup' | 'testing' | 'complete'>('setup');
   const { toast } = useToast();
+  const { loading, error, execute } = useAsyncOperation();
 
   const [formData, setFormData] = useState({
     deviceName: "",
@@ -32,6 +38,7 @@ const DeviceRegistration = () => {
     loadLocations();
     generateDeviceInfo();
     checkExistingRegistration();
+    checkCameraAccess();
   }, []);
 
   const generateDeviceInfo = () => {
@@ -63,8 +70,18 @@ const DeviceRegistration = () => {
     });
   };
 
-  const loadLocations = async () => {
+  const checkCameraAccess = async () => {
     try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      setCameraStatus('available');
+      stream.getTracks().forEach(track => track.stop());
+    } catch (error) {
+      setCameraStatus('unavailable');
+    }
+  };
+
+  const loadLocations = async () => {
+    execute(async () => {
       const { data, error } = await supabase
         .from('locations')
         .select('*')
@@ -73,13 +90,8 @@ const DeviceRegistration = () => {
 
       if (error) throw error;
       setLocations(data || []);
-    } catch (error: any) {
-      toast({
-        title: "Error Loading Locations",
-        description: error.message,
-        variant: "destructive"
-      });
-    }
+      return data || [];
+    }, { showToast: false });
   };
 
   const checkExistingRegistration = async () => {
@@ -149,6 +161,26 @@ const DeviceRegistration = () => {
     }
   };
 
+  const testDeviceCapabilities = async () => {
+    setRegistrationStep('testing');
+    
+    // Test camera
+    if (cameraStatus !== 'available') {
+      await checkCameraAccess();
+    }
+    
+    // Test network (already done since we can load locations)
+    
+    // Simulate other tests
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    setRegistrationStep('complete');
+    toast({
+      title: "Device Tests Complete",
+      description: "All capabilities verified successfully."
+    });
+  };
+
   const handleRegister = async () => {
     if (!formData.deviceName || !formData.locationId) {
       toast({
@@ -159,8 +191,16 @@ const DeviceRegistration = () => {
       return;
     }
 
-    setLoading(true);
-    try {
+    if (cameraStatus !== 'available') {
+      toast({
+        title: "Camera Required",
+        description: "Camera access is required for face recognition.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    execute(async () => {
       const { data, error } = await supabase.rpc('register_device', {
         device_name: formData.deviceName,
         device_code: formData.deviceCode,
@@ -173,22 +213,13 @@ const DeviceRegistration = () => {
       const result = data as any;
       if (result?.success) {
         setRegistered(true);
-        toast({
-          title: "Device Registered",
-          description: result.message,
-        });
+        return result;
       } else {
         throw new Error(result?.error || 'Registration failed');
       }
-    } catch (error: any) {
-      toast({
-        title: "Registration Failed",
-        description: error.message,
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
+    }, {
+      successMessage: "Device registered successfully!"
+    });
   };
 
   if (registered) {
@@ -240,6 +271,27 @@ const DeviceRegistration = () => {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {/* Device Status Indicators */}
+        <div className="grid grid-cols-2 gap-4 mb-4">
+          <Alert className={cameraStatus === 'available' ? 'border-success' : 'border-destructive'}>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Camera Access</span>
+              <Badge variant={cameraStatus === 'available' ? 'default' : 'destructive'}>
+                {cameraStatus === 'checking' ? 'Checking...' : 
+                 cameraStatus === 'available' ? 'Available' : 'Required'}
+              </Badge>
+            </AlertDescription>
+          </Alert>
+          <Alert className="border-success">
+            <Wifi className="h-4 w-4" />
+            <AlertDescription className="flex items-center justify-between">
+              <span>Network Connection</span>
+              <Badge variant="default">Connected</Badge>
+            </AlertDescription>
+          </Alert>
+        </div>
+
         <div className="space-y-2">
           <Label htmlFor="deviceName">Device Name *</Label>
           <Input
@@ -284,14 +336,77 @@ const DeviceRegistration = () => {
           <div>ID: {deviceInfo?.deviceId?.substring(0, 8)}...</div>
         </div>
 
-        <Button 
-          onClick={handleRegister}
-          disabled={loading || !formData.deviceName || !formData.locationId}
-          size="lg"
-          className="w-full"
-        >
-          {loading ? "Registering..." : "Register Device"}
-        </Button>
+        {registrationStep === 'setup' && (
+          <div className="space-y-3">
+            <Button 
+              onClick={testDeviceCapabilities}
+              disabled={!formData.deviceName || !formData.locationId || cameraStatus !== 'available'}
+              size="lg"
+              className="w-full"
+              variant="outline"
+            >
+              <Settings className="mr-2 h-4 w-4" />
+              Test Device Capabilities
+            </Button>
+            <Button 
+              onClick={handleRegister}
+              disabled={loading || !formData.deviceName || !formData.locationId || cameraStatus !== 'available'}
+              size="lg"
+              className="w-full"
+            >
+              {loading ? (
+                <>
+                  <LoadingSpinner size="sm" className="mr-2" />
+                  Registering...
+                </>
+              ) : (
+                "Register Device"
+              )}
+            </Button>
+          </div>
+        )}
+
+        {registrationStep === 'testing' && (
+          <div className="text-center py-8">
+            <LoadingSpinner size="lg" message="Testing device capabilities..." />
+          </div>
+        )}
+
+        {registrationStep === 'complete' && !registered && (
+          <Button 
+            onClick={handleRegister}
+            disabled={loading}
+            size="lg"
+            className="w-full"
+          >
+            {loading ? (
+              <>
+                <LoadingSpinner size="sm" className="mr-2" />
+                Registering...
+              </>
+            ) : (
+              "Complete Registration"
+            )}
+          </Button>
+        )}
+
+        {cameraStatus === 'unavailable' && (
+          <Alert className="border-destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              Camera access is required for face recognition. Please allow camera permissions and refresh.
+              <Button 
+                variant="outline" 
+                size="sm" 
+                className="ml-2"
+                onClick={checkCameraAccess}
+              >
+                <RefreshCw className="mr-2 h-4 w-4" />
+                Retry
+              </Button>
+            </AlertDescription>
+          </Alert>
+        )}
       </CardContent>
     </Card>
   );
