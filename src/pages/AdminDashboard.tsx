@@ -1,4 +1,4 @@
-import { useState, useEffect, memo, lazy, Suspense, startTransition } from "react";
+import { useState, useEffect, memo, startTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,19 +6,19 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 
-// Lazy load heavy components for better performance
-const AnalyticsDashboard = lazy(() => import("@/components/AnalyticsDashboard"));
-const EmployeeManagement = lazy(() => import("@/components/EmployeeManagement"));
-const LocationManagement = lazy(() => import("@/components/LocationManagement"));
-const DeviceManagement = lazy(() => import("@/components/DeviceManagement"));
-const AttendanceReports = lazy(() => import("@/components/AttendanceReports"));
-const TemporaryExitManagement = lazy(() => import("@/components/TemporaryExitManagement"));
-const SystemSettings = lazy(() => import("@/components/SystemSettings"));
-const UserManagement = lazy(() => import("@/components/UserManagement"));
-const SystemMonitoring = lazy(() => import("@/components/SystemMonitoring"));
-const NotificationCenter = lazy(() => import("@/components/NotificationCenter"));
-const NotificationManagement = lazy(() => import("@/components/NotificationManagement"));
-const SystemAlerts = lazy(() => import("@/components/SystemAlerts"));
+// Import components directly instead of lazy loading to fix module import issues
+import AnalyticsDashboard from "@/components/AnalyticsDashboard";
+import EmployeeManagement from "@/components/EmployeeManagement";
+import LocationManagement from "@/components/LocationManagement";
+import DeviceManagement from "@/components/DeviceManagement";
+import AttendanceReports from "@/components/AttendanceReports";
+import TemporaryExitManagement from "@/components/TemporaryExitManagement";
+import SystemSettings from "@/components/SystemSettings";
+import UserManagement from "@/components/UserManagement";
+import SystemMonitoring from "@/components/SystemMonitoring";
+import NotificationCenter from "@/components/NotificationCenter";
+import NotificationManagement from "@/components/NotificationManagement";
+import SystemAlerts from "@/components/SystemAlerts";
 import { 
   Users, 
   MapPin, 
@@ -258,9 +258,9 @@ const AdminDashboard = () => {
                   <p className="text-xs text-muted-foreground">Administrator</p>
                 </div>
               </div>
-              <Suspense fallback={<div className="animate-pulse bg-muted h-6 w-6 lg:h-8 lg:w-8 rounded" />}>
+              <div className="animate-pulse bg-muted h-6 w-6 lg:h-8 lg:w-8 rounded">
                 <NotificationCenter />
-              </Suspense>
+              </div>
               <Button 
                 variant="outline" 
                 onClick={handleLogout}
@@ -281,58 +281,58 @@ const AdminDashboard = () => {
             <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8 min-w-fit h-12 bg-muted/30 border border-border/50 backdrop-blur-sm gap-1">
               <TabsTrigger 
                 value="dashboard" 
-                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <BarChart3 className="h-3 w-3 lg:h-4 lg:w-4" />
+                <BarChart3 className="h-4 w-4 lg:h-5 lg:w-5" />
                 <span className="hidden sm:inline">Dashboard</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="employees" 
-                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <Users className="h-3 w-3 lg:h-4 lg:w-4" />
+                <Users className="h-4 w-4 lg:h-5 lg:w-5" />
                 <span className="hidden sm:inline">Employees</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="locations" 
-                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <Building2 className="h-3 w-3 lg:h-4 lg:w-4" />
+                <Building2 className="h-4 w-4 lg:h-5 lg:w-5" />
                 <span className="hidden sm:inline">Locations</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="devices" 
-                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
+                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <Monitor className="h-3 w-3 lg:h-4 lg:w-4" />
+                <Monitor className="h-4 w-4 lg:h-5 lg:w-5" />
                 <span className="hidden sm:inline">Devices</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="reports" 
-                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4 lg:grid lg:grid-cols-1"
+                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <FileText className="h-3 w-3 lg:h-4 lg:w-4" />
+                <FileText className="h-4 w-4 lg:h-5 lg:w-5" />
                 <span className="hidden lg:inline">Reports</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="admin" 
-                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4 lg:grid lg:grid-cols-1"
+                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <Settings className="h-3 w-3 lg:h-4 lg:w-4" />
+                <Settings className="h-4 w-4 lg:h-5 lg:w-5" />
                 <span className="hidden lg:inline">Admin</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="notifications" 
-                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4 lg:grid lg:grid-cols-1"
+                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <Bell className="h-3 w-3 lg:h-4 lg:w-4" />
+                <Bell className="h-4 w-4 lg:h-5 lg:w-5" />
                 <span className="hidden lg:inline">Notifications</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="alerts" 
-                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4 lg:grid lg:grid-cols-1"
+                className="flex items-center gap-1 lg:gap-2 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <AlertTriangle className="h-3 w-3 lg:h-4 lg:w-4" />
+                <AlertTriangle className="h-4 w-4 lg:h-5 lg:w-5" />
                 <span className="hidden lg:inline">Alerts</span>
               </TabsTrigger>
             </TabsList>
@@ -508,23 +508,17 @@ const AdminDashboard = () => {
 
           {/* Employees Tab */}
           <TabsContent value="employees" className="space-y-6">
-            <Suspense fallback={<LoadingSkeleton type="table" count={8} />}>
-              <EmployeeManagement />
-            </Suspense>
+            <EmployeeManagement />
           </TabsContent>
 
           {/* Locations Tab */}
           <TabsContent value="locations" className="space-y-6">
-            <Suspense fallback={<LoadingSkeleton type="table" count={6} />}>
-              <LocationManagement />
-            </Suspense>
+            <LocationManagement />
           </TabsContent>
 
           {/* Devices Tab */}
         <TabsContent value="devices" className="space-y-6">
-          <Suspense fallback={<LoadingSkeleton type="table" count={6} />}>
-            <DeviceManagement />
-          </Suspense>
+          <DeviceManagement />
         </TabsContent>
 
         <TabsContent value="reports" className="space-y-6">
@@ -536,21 +530,15 @@ const AdminDashboard = () => {
             </TabsList>
             
             <TabsContent value="analytics">
-              <Suspense fallback={<LoadingSkeleton type="dashboard" />}>
-                <AnalyticsDashboard />
-              </Suspense>
+              <AnalyticsDashboard />
             </TabsContent>
             
             <TabsContent value="attendance">
-              <Suspense fallback={<LoadingSkeleton type="table" count={10} />}>
-                <AttendanceReports />
-              </Suspense>
+              <AttendanceReports />
             </TabsContent>
             
             <TabsContent value="exits">
-              <Suspense fallback={<LoadingSkeleton type="table" count={6} />}>
-                <TemporaryExitManagement />
-              </Suspense>
+              <TemporaryExitManagement />
             </TabsContent>
           </Tabs>
         </TabsContent>
@@ -565,37 +553,27 @@ const AdminDashboard = () => {
             </TabsList>
             
             <TabsContent value="settings">
-              <Suspense fallback={<LoadingSkeleton type="form" count={6} />}>
-                <SystemSettings />
-              </Suspense>
+              <SystemSettings />
             </TabsContent>
             
             <TabsContent value="users">
-              <Suspense fallback={<LoadingSkeleton type="table" count={6} />}>
-                <UserManagement />
-              </Suspense>
+              <UserManagement />
             </TabsContent>
             
             <TabsContent value="monitoring">
-              <Suspense fallback={<LoadingSkeleton type="dashboard" />}>
-                <SystemMonitoring />
-              </Suspense>
+              <SystemMonitoring />
             </TabsContent>
           </Tabs>
         </TabsContent>
 
         {/* Notifications Tab */}
         <TabsContent value="notifications" className="space-y-6">
-          <Suspense fallback={<LoadingSkeleton type="form" count={5} />}>
-            <NotificationManagement />
-          </Suspense>
+          <NotificationManagement />
         </TabsContent>
 
         {/* System Alerts Tab */}
         <TabsContent value="alerts" className="space-y-6">
-          <Suspense fallback={<LoadingSkeleton type="dashboard" />}>
-            <SystemAlerts />
-          </Suspense>
+          <SystemAlerts />
         </TabsContent>
       </Tabs>
       </main>
