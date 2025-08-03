@@ -10,6 +10,9 @@ import DeviceManagement from "@/components/DeviceManagement";
 import AttendanceReports from "@/components/AttendanceReports";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 import TemporaryExitManagement from "@/components/TemporaryExitManagement";
+import SystemSettings from "@/components/SystemSettings";
+import UserManagement from "@/components/UserManagement";
+import SystemMonitoring from "@/components/SystemMonitoring";
 import { 
   Users, 
   MapPin, 
@@ -263,7 +266,7 @@ const AdminDashboard = () => {
       <main className="container mx-auto px-6 py-8">
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
           <div className="flex items-center justify-center">
-            <TabsList className="grid w-full grid-cols-5 max-w-4xl h-12 bg-muted/30 border border-border/50 backdrop-blur-sm">
+            <TabsList className="grid w-full grid-cols-6 max-w-5xl h-12 bg-muted/30 border border-border/50 backdrop-blur-sm">
               <TabsTrigger 
                 value="dashboard" 
                 className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
@@ -298,6 +301,13 @@ const AdminDashboard = () => {
               >
                 <FileText className="h-4 w-4" />
                 Reports
+              </TabsTrigger>
+              <TabsTrigger 
+                value="admin" 
+                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+              >
+                <Settings className="h-4 w-4" />
+                Admin
               </TabsTrigger>
             </TabsList>
           </div>
@@ -503,6 +513,29 @@ const AdminDashboard = () => {
             
             <TabsContent value="exits">
               <TemporaryExitManagement />
+            </TabsContent>
+          </Tabs>
+        </TabsContent>
+
+        {/* Admin Tab */}
+        <TabsContent value="admin" className="space-y-6">
+          <Tabs defaultValue="settings" className="space-y-6">
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="settings">System Settings</TabsTrigger>
+              <TabsTrigger value="users">User Management</TabsTrigger>
+              <TabsTrigger value="monitoring">System Monitoring</TabsTrigger>
+            </TabsList>
+            
+            <TabsContent value="settings">
+              <SystemSettings />
+            </TabsContent>
+            
+            <TabsContent value="users">
+              <UserManagement />
+            </TabsContent>
+            
+            <TabsContent value="monitoring">
+              <SystemMonitoring />
             </TabsContent>
           </Tabs>
         </TabsContent>
