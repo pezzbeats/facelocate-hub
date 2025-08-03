@@ -350,7 +350,7 @@ const LocationManagement = () => {
               Add Location
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg">
+          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingLocation ? 'Edit Location' : 'Add New Location'}
@@ -359,7 +359,7 @@ const LocationManagement = () => {
                 {editingLocation ? 'Update location information' : 'Enter location details to add a new attendance point'}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4 overflow-y-auto">
               <div className="space-y-2">
                 <Label htmlFor="location_name">Location Name *</Label>
                 <Input
