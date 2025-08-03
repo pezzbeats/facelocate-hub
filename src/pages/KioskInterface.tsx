@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { useMediaQuery, useIsMobile } from "@/hooks/useMediaQuery";
 import { useAsyncOperation } from "@/hooks/useErrorHandling";
@@ -21,7 +22,13 @@ import {
   Coffee,
   Utensils,
   Timer,
-  AlertTriangle
+  AlertTriangle,
+  Volume2,
+  VolumeX,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  Settings
 } from "lucide-react";
 import jusTrackLogo from "@/assets/justrack-logo.png";
 
@@ -64,6 +71,24 @@ const KioskInterface = () => {
   const [faceDetectionActive, setFaceDetectionActive] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [error, setError] = useState<string | null>(null);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [voiceEnabled, setVoiceEnabled] = useState(true);
+  const [lastHeartbeat, setLastHeartbeat] = useState<Date>(new Date());
+  const [autoRefreshInterval, setAutoRefreshInterval] = useState<NodeJS.Timeout | null>(null);
+
+  // Network status monitoring
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Time update effect
   useEffect(() => {
@@ -72,6 +97,27 @@ const KioskInterface = () => {
     }, 1000);
     return () => clearInterval(interval);
   }, []);
+
+  // Auto-refresh and heartbeat
+  useEffect(() => {
+    const heartbeatInterval = setInterval(sendHeartbeat, 30000); // Every 30 seconds
+    const refreshInterval = setInterval(() => {
+      if (document.hidden) return; // Don't refresh when tab is hidden
+      
+      // Auto-refresh the interface every 5 minutes if idle
+      const now = new Date();
+      if (now.getTime() - lastHeartbeat.getTime() > 300000 && !currentEmployee && !isProcessing) {
+        window.location.reload();
+      }
+    }, 60000); // Check every minute
+
+    setAutoRefreshInterval(refreshInterval);
+
+    return () => {
+      clearInterval(heartbeatInterval);
+      clearInterval(refreshInterval);
+    };
+  }, [lastHeartbeat, currentEmployee, isProcessing]);
 
   // Initialize kiosk
   useEffect(() => {
@@ -166,6 +212,39 @@ const KioskInterface = () => {
         });
     } catch (heartbeatError) {
       console.warn('Failed to update device heartbeat:', heartbeatError);
+    }
+  };
+
+  const sendHeartbeat = async () => {
+    if (!device) return;
+    
+    try {
+      await supabase
+        .from('device_heartbeats')
+        .insert({
+          device_id: device.id,
+          status: isOnline ? 'online' : 'offline',
+          camera_status: cameraStream ? 'working' : 'error',
+          network_status: isOnline ? 'connected' : 'disconnected'
+        });
+      
+      setLastHeartbeat(new Date());
+    } catch (error) {
+      console.warn('Failed to send heartbeat:', error);
+    }
+  };
+
+  const speakMessage = (message: string) => {
+    if (!voiceEnabled || !('speechSynthesis' in window)) return;
+    
+    try {
+      const utterance = new SpeechSynthesisUtterance(message);
+      utterance.volume = 0.8;
+      utterance.rate = 0.9;
+      utterance.pitch = 1.0;
+      speechSynthesis.speak(utterance);
+    } catch (error) {
+      console.warn('Text-to-speech failed:', error);
     }
   };
 
@@ -332,9 +411,31 @@ const KioskInterface = () => {
         }
       }
 
-      // Handle normal attendance
+      // Handle normal attendance action
+      const { data: actionResult, error: actionError } = await supabase.rpc('determine_attendance_action', {
+        emp_id: employee.id,
+        current_location_id: device?.location_id
+      });
+
+      if (actionError) throw actionError;
+
+      const action = actionResult as any;
       setCurrentEmployee(employee);
-      setAttendanceAction({ result: { message: "Attendance recorded successfully!" } });
+      setAttendanceAction(action);
+
+      // Speak the message
+      speakMessage(action.message || "Attendance recorded successfully!");
+
+      // Process the action
+      const { error: processError } = await supabase.rpc('process_attendance_action', {
+        emp_id: employee.id,
+        location_id: device?.location_id,
+        device_id: device?.id,
+        action_type: action.action,
+        confidence_score: confidence
+      });
+
+      if (processError) throw processError;
       
       setTimeout(() => {
         setCurrentEmployee(null);
@@ -370,51 +471,140 @@ const KioskInterface = () => {
   }
 
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-background to-muted/20 flex items-center justify-center p-4 ${isMobile ? 'px-2' : 'px-4'}`}>
-      <Card className={`w-full ${isMobile ? 'max-w-sm' : 'max-w-md'} shadow-elegant backdrop-blur-sm bg-card/90 border-border/50`}>
-        <CardContent className="p-8 text-center space-y-6">
-          <div className="relative mb-6">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-full rounded-lg border-2 border-primary"
-            />
-          </div>
-          
-          {currentEmployee?.recognizing ? (
-            <>
-              <Loader2 className="h-16 w-16 animate-spin mx-auto text-primary" />
-              <h2 className="text-2xl font-bold">Recognizing Face</h2>
-              <p className="text-muted-foreground">Please wait...</p>
-            </>
-          ) : currentEmployee?.error ? (
-            <>
-              <XCircle className="h-16 w-16 mx-auto text-destructive" />
-              <h2 className="text-2xl font-bold text-destructive">Recognition Failed</h2>
-              <p className="text-muted-foreground">{currentEmployee.error}</p>
-            </>
-          ) : attendanceAction?.result ? (
-            <>
-              <CheckCircle2 className="h-16 w-16 mx-auto text-success" />
-              <h2 className="text-2xl font-bold text-success">Success!</h2>
-              <p className="text-muted-foreground">{attendanceAction.result.message}</p>
-            </>
-          ) : (
-            <>
-              <Camera className="h-16 w-16 mx-auto text-primary" />
-              <h2 className="text-2xl font-bold">Show Your Face</h2>
-              <p className="text-muted-foreground">Look at the camera to clock in/out</p>
-            </>
-          )}
-          
-          <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+    <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-2">
+      {/* Status Bar */}
+      <div className="flex items-center justify-between mb-4 px-4 py-2 bg-card/90 rounded-lg shadow-sm">
+        <div className="flex items-center gap-4">
+          <img src={jusTrackLogo} alt="JusTrack" className="h-8 w-auto" />
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <MapPin className="h-4 w-4" />
             <span>{device?.location_name}</span>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+        
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 text-sm">
+            {isOnline ? (
+              <><Wifi className="h-4 w-4 text-success" /><span className="text-success">Online</span></>
+            ) : (
+              <><WifiOff className="h-4 w-4 text-destructive" /><span className="text-destructive">Offline</span></>
+            )}
+          </div>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setVoiceEnabled(!voiceEnabled)}
+            className="p-2"
+          >
+            {voiceEnabled ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => window.location.reload()}
+            className="p-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </Button>
+          
+          <div className="text-lg font-mono">
+            {currentTime.toLocaleTimeString()}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Kiosk Interface */}
+      <div className="flex items-center justify-center min-h-[calc(100vh-120px)]">
+        <Card className="w-full max-w-2xl shadow-elegant backdrop-blur-sm bg-card/95 border-border/50">
+          <CardContent className="p-12 text-center space-y-8">
+            {/* Camera Feed */}
+            <div className="relative mx-auto max-w-md">
+              <video
+                ref={videoRef}
+                autoPlay
+                muted
+                playsInline
+                className="w-full aspect-video rounded-xl border-4 border-primary shadow-lg"
+              />
+              {!isOnline && (
+                <div className="absolute inset-0 bg-black/80 rounded-xl flex items-center justify-center">
+                  <div className="text-center text-white">
+                    <WifiOff className="h-12 w-12 mx-auto mb-2" />
+                    <p className="text-lg font-semibold">Offline Mode</p>
+                    <p className="text-sm">Limited functionality available</p>
+                  </div>
+                </div>
+              )}
+            </div>
+            
+            {/* Status Display */}
+            {currentEmployee?.recognizing ? (
+              <div className="space-y-6">
+                <Loader2 className="h-20 w-20 animate-spin mx-auto text-primary" />
+                <div>
+                  <h2 className="text-4xl font-bold mb-2">Recognizing Face</h2>
+                  <p className="text-xl text-muted-foreground">Please hold still...</p>
+                </div>
+              </div>
+            ) : currentEmployee?.error ? (
+              <div className="space-y-6">
+                <XCircle className="h-20 w-20 mx-auto text-destructive" />
+                <div>
+                  <h2 className="text-4xl font-bold text-destructive mb-2">Recognition Failed</h2>
+                  <p className="text-xl text-muted-foreground">{currentEmployee.error}</p>
+                </div>
+              </div>
+            ) : attendanceAction?.result || attendanceAction?.message ? (
+              <div className="space-y-6">
+                <CheckCircle2 className="h-20 w-20 mx-auto text-success" />
+                <div>
+                  <h2 className="text-4xl font-bold text-success mb-2">Success!</h2>
+                  <p className="text-xl text-muted-foreground">
+                    {attendanceAction?.result?.message || attendanceAction?.message}
+                  </p>
+                  {currentEmployee && (
+                    <div className="mt-4 p-4 bg-muted/20 rounded-lg">
+                      <p className="text-lg font-semibold">{currentEmployee.full_name}</p>
+                      <p className="text-sm text-muted-foreground">{currentEmployee.employee_code}</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-6">
+                <Camera className="h-20 w-20 mx-auto text-primary animate-pulse" />
+                <div>
+                  <h2 className="text-4xl font-bold mb-2">Show Your Face</h2>
+                  <p className="text-xl text-muted-foreground">
+                    Look at the camera to record attendance
+                  </p>
+                  <div className="mt-4 text-sm text-muted-foreground">
+                    <p>Position your face in the camera frame</p>
+                    <p>Ensure good lighting for best results</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Emergency Actions */}
+            {!currentEmployee && !isProcessing && (
+              <div className="flex justify-center gap-4 pt-8">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="px-8 py-6 text-lg"
+                  onClick={() => navigate('/admin/login')}
+                >
+                  <Settings className="mr-2 h-5 w-5" />
+                  Admin Access
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

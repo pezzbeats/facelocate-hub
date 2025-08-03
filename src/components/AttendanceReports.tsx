@@ -11,7 +11,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { CalendarIcon, FileText, Download, Search } from "lucide-react";
+import { CalendarIcon, FileText, Download, Search, Users, Clock, MapPin } from "lucide-react";
 import { format, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
 import jsPDF from "jspdf";
@@ -418,15 +418,68 @@ const AttendanceReports = () => {
           <p className="text-muted-foreground">Comprehensive attendance analytics and reporting</p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={exportToPDF} variant="outline">
+          <Button onClick={exportToPDF} variant="outline" disabled={loading}>
             <FileText className="mr-2 h-4 w-4" />
             Export PDF
           </Button>
-          <Button onClick={exportToExcel} variant="outline">
+          <Button onClick={exportToExcel} variant="outline" disabled={loading}>
             <Download className="mr-2 h-4 w-4" />
             Export Excel
           </Button>
         </div>
+      </div>
+
+      {/* Summary Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <Users className="h-4 w-4 text-muted-foreground" />
+              <div className="ml-2">
+                <p className="text-sm font-medium leading-none">Total Employees</p>
+                <p className="text-2xl font-bold">{summaryData.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <Clock className="h-4 w-4 text-success" />
+              <div className="ml-2">
+                <p className="text-sm font-medium leading-none">Avg Attendance</p>
+                <p className="text-2xl font-bold">
+                  {summaryData.length > 0 
+                    ? `${(summaryData.reduce((sum, emp) => sum + emp.attendance_percentage, 0) / summaryData.length).toFixed(1)}%`
+                    : '0%'
+                  }
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <MapPin className="h-4 w-4 text-primary" />
+              <div className="ml-2">
+                <p className="text-sm font-medium leading-none">Active Locations</p>
+                <p className="text-2xl font-bold">{locationData.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center">
+              <FileText className="h-4 w-4 text-muted-foreground" />
+              <div className="ml-2">
+                <p className="text-sm font-medium leading-none">Daily Records</p>
+                <p className="text-2xl font-bold">{dailyData.length}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Filter Panel */}

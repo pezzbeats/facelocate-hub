@@ -22,6 +22,8 @@ import SystemMonitoring from "@/components/SystemMonitoring";
 import NotificationCenter from "@/components/NotificationCenter";
 import NotificationManagement from "@/components/NotificationManagement";
 import SystemAlerts from "@/components/SystemAlerts";
+import HelpDocumentation from "@/components/HelpDocumentation";
+import AccessibilitySettings from "@/components/AccessibilitySettings";
 import { 
   Users, 
   MapPin, 
@@ -42,7 +44,9 @@ import {
   LogOut,
   FileText,
   Bell,
-  AlertTriangle
+  AlertTriangle,
+  HelpCircle,
+  Accessibility
 } from "lucide-react";
 import jusTrackLogo from "@/assets/justrack-logo.png";
 import { supabase } from "@/integrations/supabase/client";
@@ -601,10 +605,12 @@ const AdminDashboard = () => {
         {/* Admin Tab */}
         <TabsContent value="admin" className="space-y-6">
           <Tabs defaultValue="settings" className="space-y-6">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-5">
               <TabsTrigger value="settings">System Settings</TabsTrigger>
               <TabsTrigger value="users">User Management</TabsTrigger>
               <TabsTrigger value="monitoring">System Monitoring</TabsTrigger>
+              <TabsTrigger value="help">Help & Docs</TabsTrigger>
+              <TabsTrigger value="accessibility">Accessibility</TabsTrigger>
             </TabsList>
             
             <TabsContent value="settings">
@@ -617,6 +623,14 @@ const AdminDashboard = () => {
             
             <TabsContent value="monitoring">
               <SystemMonitoring />
+            </TabsContent>
+            
+            <TabsContent value="help">
+              <HelpDocumentation />
+            </TabsContent>
+            
+            <TabsContent value="accessibility">
+              <AccessibilitySettings />
             </TabsContent>
           </Tabs>
         </TabsContent>
