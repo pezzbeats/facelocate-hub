@@ -75,6 +75,8 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
         videoRef.current.srcObject = mediaStream;
         setStream(mediaStream);
         setCameraStatus('ready');
+        // Automatically start capturing mode when camera is ready
+        setRegistrationStep('capturing');
         startFaceDetection();
       }
     } catch (error) {
@@ -101,10 +103,13 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
           }
         } catch (error) {
           console.error('Face detection error:', error);
+          setFaceQuality({ score: 0, message: 'Face detection failed', isGood: false });
         }
       }
     };
 
+    // Start detecting immediately, then every 500ms
+    detectFaces();
     const interval = setInterval(detectFaces, 500);
     return () => clearInterval(interval);
   };
