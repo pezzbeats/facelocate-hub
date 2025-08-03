@@ -101,9 +101,19 @@ const SystemSettings = () => {
   };
 
   const renderSettingInput = (setting: SystemSetting) => {
-    const value = typeof setting.setting_value === 'string' 
-      ? JSON.parse(setting.setting_value) 
-      : setting.setting_value;
+    let value;
+    try {
+      if (setting.setting_value === null || setting.setting_value === undefined) {
+        value = null;
+      } else if (typeof setting.setting_value === 'string') {
+        value = JSON.parse(setting.setting_value);
+      } else {
+        value = setting.setting_value;
+      }
+    } catch (error) {
+      console.warn(`Failed to parse setting value for ${setting.setting_key}:`, setting.setting_value);
+      value = setting.setting_value; // Use raw value if JSON parsing fails
+    }
 
     const handleChange = (newValue: any) => {
       updateSetting(setting.category, setting.setting_key, newValue);
