@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAsyncOperation } from "@/hooks/useAsyncOperation";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import SecureStorage from "@/utils/secureStorage";
 import { Monitor, MapPin, Wifi, CheckCircle2, AlertTriangle, RefreshCw, Settings } from "lucide-react";
 
 interface Location {
@@ -61,13 +62,18 @@ const DeviceRegistration = () => {
     
     const deviceId = btoa(fingerprint).substring(0, 32);
     
-    setDeviceInfo({
+    const deviceData = {
       deviceId,
       userAgent: navigator.userAgent,
       screenResolution: `${screen.width}x${screen.height}`,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       language: navigator.language
-    });
+    };
+    
+    setDeviceInfo(deviceData);
+    
+    // Store device info securely
+    SecureStorage.setItem('device_info', deviceData, 24); // 24 hour expiry
   };
 
   const checkCameraAccess = async () => {
@@ -114,8 +120,8 @@ const DeviceRegistration = () => {
         });
       }
     } catch (error) {
-      // Device not registered yet
-      console.log('Device not registered');
+      // Device not registered yet - this is expected behavior
+      // Remove console logging in production
     }
   };
 
@@ -147,7 +153,7 @@ const DeviceRegistration = () => {
       const nextNumber = lastNumber + 1;
       return `${location.location_code}-DEV${nextNumber.toString().padStart(2, '0')}`;
     } catch (error) {
-      console.error('Error generating device code:', error);
+      // Fallback device code generation - log securely in production
       return 'DEV001';
     }
   };

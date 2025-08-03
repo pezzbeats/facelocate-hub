@@ -11,9 +11,9 @@ import { Loader2, Eye, EyeOff, ArrowLeft, Info } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import BreadcrumbNavigation from "@/components/BreadcrumbNavigation";
 import jusTrackLogo from "@/assets/justrack-logo.png";
+import { useSecureAuth } from "@/hooks/useSecureAuth";
 
 const AdminLogin = () => {
-  const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [rememberDevice, setRememberDevice] = useState(false);
   const [formData, setFormData] = useState({
@@ -22,79 +22,43 @@ const AdminLogin = () => {
   });
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user, loading, secureLogin } = useSecureAuth();
 
   // Check if user is already logged in
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        // Verify user is admin
-        const { data: adminUser } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('id', session.user.id)
-          .eq('is_active', true)
-          .single();
-        
-        if (adminUser) {
-          navigate('/admin/dashboard');
-        }
-      }
-    };
-    checkAuth();
-  }, [navigate]);
+    if (user) {
+      navigate('/admin/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.email || !formData.password) {
       toast({
-        title: "Missing Information",
+        title: "Missing Fields",
         description: "Please enter both email and password.",
         variant: "destructive"
       });
       return;
     }
 
-    setLoading(true);
     try {
-      // Authenticate with Supabase
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
+      await secureLogin(formData.email, formData.password);
+      
+      toast({
+        title: "Welcome back!",
+        description: "Successfully logged in"
       });
 
-      if (authError) throw authError;
+      navigate('/admin/dashboard');
 
-      if (authData.user) {
-        // Verify user is an admin
-        const { data: adminUser, error: adminError } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('id', authData.user.id)
-          .eq('is_active', true)
-          .single();
-
-        if (adminError || !adminUser) {
-          await supabase.auth.signOut();
-          throw new Error('Access denied. Admin privileges required.');
-        }
-
-        toast({
-          title: "Login Successful",
-          description: `Welcome back, ${adminUser.full_name}!`,
-        });
-
-        navigate('/admin/dashboard');
-      }
     } catch (error: any) {
       toast({
         title: "Login Failed",
-        description: error.message || "Invalid email or password.",
+        description: error.message || "Invalid credentials. Please try again.",
         variant: "destructive"
       });
-    } finally {
-      setLoading(false);
     }
   };
 

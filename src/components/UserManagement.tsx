@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { RateLimiter } from "@/utils/rateLimiter";
 import { 
   Users, 
   UserPlus, 
@@ -138,6 +139,14 @@ const UserManagement = () => {
 
   const createUser = async () => {
     try {
+      // Check rate limit for user creation
+      const rateLimitKey = `create_user_${newUser.email}`;
+      if (RateLimiter.isRateLimited(rateLimitKey, 3, 60 * 60 * 1000)) { // 3 attempts per hour
+        const resetTime = RateLimiter.getResetTime(rateLimitKey);
+        const resetMinutes = Math.ceil(resetTime / (60 * 1000));
+        throw new Error(`Rate limit exceeded. Please try again in ${resetMinutes} minute(s).`);
+      }
+
       // Create auth user first
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: newUser.email,
@@ -205,7 +214,7 @@ const UserManagement = () => {
         description: `User ${!currentStatus ? 'activated' : 'deactivated'} successfully`
       });
     } catch (error: any) {
-      console.error('Error updating user status:', error);
+      // Remove console.error in production - log to secure audit system instead
       toast({
         title: "Error",
         description: "Failed to update user status",
