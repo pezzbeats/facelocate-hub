@@ -1,4 +1,4 @@
-import { useState, useEffect, memo, lazy, Suspense } from "react";
+import { useState, useEffect, memo, lazy, Suspense, startTransition } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -222,117 +222,118 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-accent/10">
       {/* Admin Header */}
       <header className="sticky top-0 z-40 bg-card/95 backdrop-blur-lg border-b border-border/50 shadow-elegant">
-        <div className="container mx-auto px-6 py-4">
+        <div className="container mx-auto px-3 lg:px-6 py-3 lg:py-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-10 h-10 rounded-xl bg-gradient-primary p-2 shadow-glow">
+            <div className="flex items-center space-x-2 lg:space-x-4 min-w-0 flex-1">
+              <div className="w-8 h-8 lg:w-10 lg:h-10 rounded-xl bg-gradient-primary p-1.5 lg:p-2 shadow-glow flex-shrink-0">
                 <img src={jusTrackLogo} alt="JusTrack" className="w-full h-full object-contain filter brightness-0 invert" />
               </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent">
+              <div className="min-w-0">
+                <h1 className="text-lg lg:text-2xl font-bold bg-gradient-to-r from-foreground to-foreground/80 bg-clip-text text-transparent truncate">
                   JusTrack Admin
                 </h1>
-                <p className="text-sm text-muted-foreground">Management Dashboard</p>
+                <p className="text-xs lg:text-sm text-muted-foreground hidden sm:block">Management Dashboard</p>
               </div>
             </div>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2 lg:gap-4 overflow-hidden">
               <Button 
                 variant="ghost" 
                 size="sm"
                 onClick={() => navigate('/')}
-                className="text-muted-foreground hover:text-foreground"
+                className="text-muted-foreground hover:text-foreground hidden sm:flex"
               >
                 <Home className="h-4 w-4 mr-2" />
                 Home
               </Button>
-              <div className="flex items-center gap-3 px-3 py-2 rounded-lg bg-muted/30 border border-border/50">
-                <div className="w-8 h-8 rounded-full bg-gradient-primary flex items-center justify-center">
-                  <span className="text-sm font-medium text-primary-foreground">
+              <div className="flex items-center gap-2 lg:gap-3 px-2 lg:px-3 py-2 rounded-lg bg-muted/30 border border-border/50 min-w-0">
+                <div className="w-6 h-6 lg:w-8 lg:h-8 rounded-full bg-gradient-primary flex items-center justify-center flex-shrink-0">
+                  <span className="text-xs lg:text-sm font-medium text-primary-foreground">
                     {currentUser?.full_name?.charAt(0) || 'A'}
                   </span>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-medium text-foreground">
+                <div className="text-right min-w-0 hidden sm:block">
+                  <p className="text-xs lg:text-sm font-medium text-foreground truncate">
                     {currentUser?.full_name || 'Admin User'}
                   </p>
                   <p className="text-xs text-muted-foreground">Administrator</p>
                 </div>
               </div>
-              <Suspense fallback={<div className="animate-pulse bg-muted h-8 w-8 rounded" />}>
+              <Suspense fallback={<div className="animate-pulse bg-muted h-6 w-6 lg:h-8 lg:w-8 rounded" />}>
                 <NotificationCenter />
               </Suspense>
               <Button 
                 variant="outline" 
                 onClick={handleLogout}
-                className="hover:bg-destructive hover:text-destructive-foreground border-border/50"
+                className="hover:bg-destructive hover:text-destructive-foreground border-border/50 flex-shrink-0"
+                size="sm"
               >
-                <LogOut className="h-4 w-4 mr-2" />
-                Sign Out
+                <LogOut className="h-3 w-3 lg:h-4 lg:w-4 mr-1 lg:mr-2" />
+                <span className="hidden sm:inline">Sign Out</span>
               </Button>
             </div>
           </div>
         </div>
       </header>
 
-      <main className="container mx-auto px-6 py-8">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-8">
-          <div className="flex items-center justify-center">
-            <TabsList className="grid w-full grid-cols-8 max-w-6xl h-12 bg-muted/30 border border-border/50 backdrop-blur-sm">
+      <main className="container mx-auto px-3 lg:px-6 py-4 lg:py-8">
+        <Tabs value={activeTab} onValueChange={(value) => startTransition(() => setActiveTab(value))} className="space-y-8">
+          <div className="flex items-center justify-center overflow-x-auto">
+            <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8 min-w-fit h-12 bg-muted/30 border border-border/50 backdrop-blur-sm gap-1">
               <TabsTrigger 
                 value="dashboard" 
-                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <BarChart3 className="h-4 w-4" />
-                Dashboard
+                <BarChart3 className="h-3 w-3 lg:h-4 lg:w-4" />
+                <span className="hidden sm:inline">Dashboard</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="employees" 
-                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <Users className="h-4 w-4" />
-                Employees
+                <Users className="h-3 w-3 lg:h-4 lg:w-4" />
+                <span className="hidden sm:inline">Employees</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="locations" 
-                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <Building2 className="h-4 w-4" />
-                Locations
+                <Building2 className="h-3 w-3 lg:h-4 lg:w-4" />
+                <span className="hidden sm:inline">Locations</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="devices" 
-                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4"
               >
-                <Monitor className="h-4 w-4" />
-                Devices
+                <Monitor className="h-3 w-3 lg:h-4 lg:w-4" />
+                <span className="hidden sm:inline">Devices</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="reports" 
-                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4 lg:grid lg:grid-cols-1"
               >
-                <FileText className="h-4 w-4" />
-                Reports
+                <FileText className="h-3 w-3 lg:h-4 lg:w-4" />
+                <span className="hidden lg:inline">Reports</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="admin" 
-                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4 lg:grid lg:grid-cols-1"
               >
-                <Settings className="h-4 w-4" />
-                Admin
+                <Settings className="h-3 w-3 lg:h-4 lg:w-4" />
+                <span className="hidden lg:inline">Admin</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="notifications" 
-                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4 lg:grid lg:grid-cols-1"
               >
-                <Bell className="h-4 w-4" />
-                Notifications
+                <Bell className="h-3 w-3 lg:h-4 lg:w-4" />
+                <span className="hidden lg:inline">Notifications</span>
               </TabsTrigger>
               <TabsTrigger 
                 value="alerts" 
-                className="flex items-center gap-2 text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all"
+                className="flex items-center gap-1 text-xs lg:text-sm font-medium data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all whitespace-nowrap px-2 lg:px-4 lg:grid lg:grid-cols-1"
               >
-                <AlertTriangle className="h-4 w-4" />
-                Alerts
+                <AlertTriangle className="h-3 w-3 lg:h-4 lg:w-4" />
+                <span className="hidden lg:inline">Alerts</span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -340,7 +341,7 @@ const AdminDashboard = () => {
           {/* Dashboard Tab */}
           <TabsContent value="dashboard" className="space-y-8">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
               <Card className="relative overflow-hidden bg-gradient-to-br from-primary via-primary-dark to-primary border-0 shadow-elegant hover:shadow-glow transition-all duration-300">
                 <div className="absolute inset-0 bg-grid-white/10 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
                 <CardContent className="relative p-6 text-primary-foreground">
@@ -407,7 +408,7 @@ const AdminDashboard = () => {
             </div>
 
             {/* Current Status and Recent Events */}
-            <div className="grid lg:grid-cols-2 gap-8">
+            <div className="grid lg:grid-cols-2 gap-4 lg:gap-8">
               {/* Current Employee Status */}
               <Card className="bg-card/60 backdrop-blur-sm border-border/50 shadow-elegant">
                 <CardHeader className="pb-4">
@@ -507,17 +508,23 @@ const AdminDashboard = () => {
 
           {/* Employees Tab */}
           <TabsContent value="employees" className="space-y-6">
-            <EmployeeManagement />
+            <Suspense fallback={<LoadingSkeleton type="table" count={8} />}>
+              <EmployeeManagement />
+            </Suspense>
           </TabsContent>
 
           {/* Locations Tab */}
           <TabsContent value="locations" className="space-y-6">
-            <LocationManagement />
+            <Suspense fallback={<LoadingSkeleton type="table" count={6} />}>
+              <LocationManagement />
+            </Suspense>
           </TabsContent>
 
           {/* Devices Tab */}
         <TabsContent value="devices" className="space-y-6">
-          <DeviceManagement />
+          <Suspense fallback={<LoadingSkeleton type="table" count={6} />}>
+            <DeviceManagement />
+          </Suspense>
         </TabsContent>
 
         <TabsContent value="reports" className="space-y-6">
@@ -529,15 +536,21 @@ const AdminDashboard = () => {
             </TabsList>
             
             <TabsContent value="analytics">
-              <AnalyticsDashboard />
+              <Suspense fallback={<LoadingSkeleton type="dashboard" />}>
+                <AnalyticsDashboard />
+              </Suspense>
             </TabsContent>
             
             <TabsContent value="attendance">
-              <AttendanceReports />
+              <Suspense fallback={<LoadingSkeleton type="table" count={10} />}>
+                <AttendanceReports />
+              </Suspense>
             </TabsContent>
             
             <TabsContent value="exits">
-              <TemporaryExitManagement />
+              <Suspense fallback={<LoadingSkeleton type="table" count={6} />}>
+                <TemporaryExitManagement />
+              </Suspense>
             </TabsContent>
           </Tabs>
         </TabsContent>
