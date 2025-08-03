@@ -3,15 +3,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useNavigate } from "react-router-dom";
-import { Loader2, Eye, EyeOff, ArrowLeft } from "lucide-react";
+import { Loader2, Eye, EyeOff, ArrowLeft, Info } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import BreadcrumbNavigation from "@/components/BreadcrumbNavigation";
 import jusTrackLogo from "@/assets/justrack-logo.png";
 
 const AdminLogin = () => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberDevice, setRememberDevice] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
     password: ""
@@ -57,7 +61,7 @@ const AdminLogin = () => {
       // Authenticate with Supabase
       const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
         email: formData.email,
-        password: formData.password
+        password: formData.password,
       });
 
       if (authError) throw authError;
@@ -95,8 +99,10 @@ const AdminLogin = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-admin via-admin-secondary to-admin-accent flex items-center justify-center p-6">
-      <div className="absolute inset-0 bg-grid-white/10 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
+    <div className="min-h-screen bg-gradient-kiosk">
+      <BreadcrumbNavigation />
+      <div className="flex items-center justify-center p-6 min-h-[calc(100vh-3rem)]">
+        <div className="absolute inset-0 bg-grid-white/10 [mask-image:radial-gradient(ellipse_at_center,white,transparent)]" />
       <Card className="w-full max-w-md shadow-elegant border-admin-accent/20 bg-card/95 backdrop-blur-sm">
         <CardHeader className="text-center space-y-6">
           <div className="mx-auto w-16 h-16 rounded-2xl bg-gradient-primary p-3 shadow-glow">
@@ -161,6 +167,18 @@ const AdminLogin = () => {
               </div>
             </div>
 
+            {/* Remember Device */}
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="rememberDevice" 
+                checked={rememberDevice}
+                onCheckedChange={(checked) => setRememberDevice(checked as boolean)}
+              />
+              <Label htmlFor="rememberDevice" className="text-sm text-muted-foreground">
+                Remember this device
+              </Label>
+            </div>
+
             <Button 
               type="submit"
               size="lg" 
@@ -170,6 +188,14 @@ const AdminLogin = () => {
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               {loading ? "Signing In..." : "Sign In to Dashboard"}
             </Button>
+
+            {/* Demo Credentials Info */}
+            <Alert className="border-info/20 bg-info/5">
+              <Info className="h-4 w-4" />
+              <AlertDescription className="text-sm">
+                For testing: Use the credentials created during system setup.
+              </AlertDescription>
+            </Alert>
           </form>
 
           <div className="flex flex-col items-center space-y-4">
@@ -186,8 +212,9 @@ const AdminLogin = () => {
               <p>Powered by <span className="font-medium">Shatak Infotech</span></p>
             </div>
           </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 };

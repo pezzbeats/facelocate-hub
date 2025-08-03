@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
+import BreadcrumbNavigation from "@/components/BreadcrumbNavigation";
+import QuickActions from "@/components/QuickActions";
+import GlobalSearch from "@/components/GlobalSearch";
 
 // Import components directly instead of lazy loading to fix module import issues
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
@@ -218,6 +221,38 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleQuickAction = (action: string) => {
+    const actionMap: { [key: string]: string } = {
+      "add-employee": "employees",
+      "add-location": "locations", 
+      "register-device": "devices",
+      "generate-report": "reports",
+      "import-employees": "employees",
+      "system-settings": "admin",
+    };
+    
+    const tab = actionMap[action];
+    if (tab) {
+      setActiveTab(tab);
+      // Update URL hash for breadcrumb navigation
+      window.location.hash = `#${tab}`;
+    }
+  };
+
+  const handleSearchSelect = (result: any) => {
+    const typeMap: { [key: string]: string } = {
+      "employee": "employees",
+      "location": "locations",
+      "device": "devices",
+    };
+    
+    const tab = typeMap[result.type];
+    if (tab) {
+      setActiveTab(tab);
+      window.location.hash = `#${tab}`;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-accent/10">
       {/* Admin Header */}
@@ -236,6 +271,9 @@ const AdminDashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-2 lg:gap-4 overflow-hidden">
+              <div className="hidden lg:block">
+                <GlobalSearch onResultSelect={handleSearchSelect} />
+              </div>
               <Button 
                 variant="ghost" 
                 size="sm"
@@ -275,8 +313,13 @@ const AdminDashboard = () => {
         </div>
       </header>
 
+      <BreadcrumbNavigation />
+
       <main className="container mx-auto px-3 lg:px-6 py-4 lg:py-8">
-        <Tabs value={activeTab} onValueChange={(value) => startTransition(() => setActiveTab(value))} className="space-y-8">
+        <Tabs value={activeTab} onValueChange={(value) => startTransition(() => {
+          setActiveTab(value);
+          window.location.hash = `#${value}`;
+        })} className="space-y-8">
           <div className="w-full overflow-x-auto scrollbar-hide">
             <TabsList className="inline-flex h-14 items-center justify-start w-max min-w-full bg-muted/30 border border-border/50 backdrop-blur-sm p-1 gap-1">
               <TabsTrigger 
@@ -403,6 +446,18 @@ const AdminDashboard = () => {
                       <XCircle className="h-6 w-6" />
                     </div>
                   </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Quick Actions */}
+            <QuickActions onActionClick={handleQuickAction} />
+
+            {/* Mobile Search */}
+            <div className="lg:hidden">
+              <Card className="border-border/40 bg-gradient-to-br from-card via-card/95 to-muted/20">
+                <CardContent className="p-4">
+                  <GlobalSearch onResultSelect={handleSearchSelect} />
                 </CardContent>
               </Card>
             </div>

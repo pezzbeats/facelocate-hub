@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ErrorBoundary from "./components/ErrorBoundary";
 import LoadingSkeleton from "./components/LoadingSkeleton";
+import NotificationToast from "./components/NotificationToast";
 import Landing from "./pages/Landing";
 import Setup from "./pages/Setup";
 import AdminLogin from "./pages/AdminLogin";
@@ -22,6 +23,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <NotificationToast />
       <BrowserRouter>
         <ErrorBoundary>
           <Routes>
