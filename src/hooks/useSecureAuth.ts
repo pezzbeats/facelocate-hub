@@ -42,6 +42,7 @@ export const useSecureAuth = () => {
   // Check admin status
   const checkAdminStatus = useCallback(async (userId: string) => {
     try {
+      console.log('🔍 Checking admin status for user:', userId);
       const { data, error } = await supabase
         .from('admin_users')
         .select('role, is_active')
@@ -49,9 +50,15 @@ export const useSecureAuth = () => {
         .eq('is_active', true)
         .maybeSingle();
 
-      if (error) throw error;
-      setIsAdmin(!!data);
-      return !!data;
+      if (error) {
+        console.error('❌ Admin check error:', error);
+        throw error;
+      }
+      
+      const adminStatus = !!data;
+      console.log('👤 Admin status result:', adminStatus);
+      setIsAdmin(adminStatus);
+      return adminStatus;
     } catch (error) {
       console.error('Admin check error:', error);
       setIsAdmin(false);
@@ -162,23 +169,34 @@ export const useSecureAuth = () => {
 
     const initializeAuth = async () => {
       try {
+        console.log('🔑 Initializing auth...');
         // Get initial session
         const { data: { session }, error } = await supabase.auth.getSession();
         
-        if (error) throw error;
+        if (error) {
+          console.error('❌ Session error:', error);
+          throw error;
+        }
 
         if (session && mounted) {
+          console.log('✅ Session found, validating...');
           const isValid = await validateSession(session);
           if (isValid) {
+            console.log('✅ Session is valid, setting user state');
             setSession(session);
             setUser(session.user);
             await checkAdminStatus(session.user.id);
+          } else {
+            console.log('❌ Session validation failed');
           }
+        } else {
+          console.log('ℹ️ No session found');
         }
       } catch (error) {
         console.warn('Auth initialization error:', error);
       } finally {
         if (mounted) {
+          console.log('🏁 Auth initialization complete, setting loading to false');
           setLoading(false);
         }
       }

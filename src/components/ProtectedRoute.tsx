@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useSecureAuth } from "@/hooks/useSecureAuth";
 import { Loader2 } from "lucide-react";
 
 interface ProtectedRouteProps {
@@ -8,67 +8,10 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
-  const [loading, setLoading] = useState(true);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { user, loading, isAdmin } = useSecureAuth();
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          setIsAuthenticated(false);
-          setLoading(false);
-          return;
-        }
+  console.log('ProtectedRoute state:', { user: !!user, loading, isAdmin });
 
-        setIsAuthenticated(true);
-
-        // Check if user is admin
-        const { data: adminUser } = await supabase
-          .from('admin_users')
-          .select('*')
-          .eq('id', session.user.id)
-          .eq('is_active', true)
-          .single();
-
-        setIsAdmin(!!adminUser);
-      } catch (error) {
-        console.error('Auth check error:', error);
-        setIsAuthenticated(false);
-        setIsAdmin(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkAuth();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_OUT' || !session) {
-          setIsAuthenticated(false);
-          setIsAdmin(false);
-        } else if (event === 'SIGNED_IN' && session) {
-          setIsAuthenticated(true);
-          
-          // Check admin status
-          const { data: adminUser } = await supabase
-            .from('admin_users')
-            .select('*')
-            .eq('id', session.user.id)
-            .eq('is_active', true)
-            .single();
-
-          setIsAdmin(!!adminUser);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
-  }, []);
 
   if (loading) {
     return (
@@ -81,11 +24,13 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
     );
   }
 
-  if (!isAuthenticated) {
+  if (!user) {
+    console.log('No user found, redirecting to login');
     return <Navigate to="/admin/login" replace />;
   }
 
   if (!isAdmin) {
+    console.log('User is not admin, showing access denied');
     return (
       <div className="min-h-screen bg-gradient-kiosk flex items-center justify-center">
         <div className="text-center">
