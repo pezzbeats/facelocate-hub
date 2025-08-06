@@ -179,6 +179,16 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
       // Convert Float32Array to regular arrays for JSON storage
       const encodings = faceDescriptors.map(desc => Array.from(desc));
 
+      // Check current user authentication
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        throw new Error('Authentication required to save face data');
+      }
+
+      console.log('Saving face data for employee:', employee.id);
+      console.log('Current user:', user.id);
+      console.log('Face encodings length:', encodings.length);
+
       const { error } = await supabase
         .from('employees')
         .update({
@@ -188,17 +198,25 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
         })
         .eq('id', employee.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Database update error:', error);
+        throw error;
+      }
 
-      // Log the registration attempt
-      await supabase
-        .from('face_registration_logs')
-        .insert({
-          employee_id: employee.id,
-          attempt_number: 1,
-          success: true,
-          quality_score: faceQuality?.score || 0
-        });
+      // Check if face_registration_logs table exists before logging
+      try {
+        await supabase
+          .from('face_registration_logs')
+          .insert({
+            employee_id: employee.id,
+            attempt_number: 1,
+            success: true,
+            quality_score: faceQuality?.score || 0
+          });
+      } catch (logError) {
+        console.warn('Could not log registration attempt:', logError);
+        // Don't fail the registration if logging fails
+      }
 
       setRegistrationStep('complete');
       toast({
@@ -211,6 +229,7 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
       }, 2000);
 
     } catch (error: any) {
+      console.error('Face registration save error:', error);
       toast({
         title: "Registration Failed",
         description: error.message || "Failed to save face data.",
