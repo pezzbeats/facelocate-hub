@@ -69,6 +69,7 @@ export const useSecureAuth = () => {
       throw new Error(`Too many login attempts. Please try again in ${resetMinutes} minute(s).`);
     }
 
+    setLoading(true);
     logSecurityEvent({ type: 'login_attempt' });
 
     try {
@@ -79,6 +80,7 @@ export const useSecureAuth = () => {
 
       if (error) {
         logSecurityEvent({ type: 'login_failure' });
+        setLoading(false);
         throw error;
       }
 
@@ -86,6 +88,7 @@ export const useSecureAuth = () => {
         const isAdminUser = await checkAdminStatus(data.user.id);
         if (!isAdminUser) {
           await supabase.auth.signOut();
+          setLoading(false);
           throw new Error('Access denied. Admin privileges required.');
         }
 
@@ -99,9 +102,11 @@ export const useSecureAuth = () => {
         }, 1); // 1 hour expiry
       }
 
+      setLoading(false);
       return data;
     } catch (error) {
       logSecurityEvent({ type: 'login_failure' });
+      setLoading(false);
       throw error;
     }
   }, [checkAdminStatus, logSecurityEvent]);
