@@ -88,13 +88,21 @@ export class FaceRecognitionService {
     }
 
     try {
+      // Mobile-optimized detection options
       const detection = await faceapi
         .detectSingleFace(videoElement, new faceapi.TinyFaceDetectorOptions({
-          inputSize: 416,
-          scoreThreshold: 0.5
+          inputSize: 320, // Smaller input size for mobile performance
+          scoreThreshold: 0.3 // Lower threshold for mobile cameras
         }))
         .withFaceLandmarks()
         .withFaceDescriptor();
+
+      if (detection) {
+        console.log('Face detected successfully:', {
+          score: detection.detection.score,
+          box: detection.detection.box
+        });
+      }
 
       return detection;
     } catch (error) {
@@ -107,19 +115,19 @@ export class FaceRecognitionService {
     const landmarks = detection.landmarks;
     const box = detection.detection.box;
     
-    // Check face size (should be reasonable portion of frame)
+    // Check face size (should be reasonable portion of frame) - more lenient for mobile
     const faceArea = box.width * box.height;
     const frameArea = 1280 * 720; // Assuming 720p
     const faceRatio = faceArea / frameArea;
     
-    if (faceRatio < 0.05) {
+    if (faceRatio < 0.02) { // More lenient minimum size
       return { score: 0.3, message: 'Please move closer to the camera', isGood: false };
     }
-    if (faceRatio > 0.4) {
+    if (faceRatio > 0.6) { // More lenient maximum size
       return { score: 0.3, message: 'Please move back from the camera', isGood: false };
     }
     
-    // Check face angle using landmarks
+    // Check face angle using landmarks - more lenient
     const leftEye = landmarks.getLeftEye();
     const rightEye = landmarks.getRightEye();
     
@@ -127,17 +135,17 @@ export class FaceRecognitionService {
     const faceWidth = box.width;
     const symmetryRatio = eyeDistance / faceWidth;
     
-    if (symmetryRatio < 0.25) {
+    if (symmetryRatio < 0.15) { // More lenient angle tolerance
       return { score: 0.4, message: 'Please face the camera directly', isGood: false };
     }
     
-    // Check detection confidence
+    // Check detection confidence - more lenient for mobile
     const detectionScore = detection.detection.score;
-    if (detectionScore < 0.8) {
+    if (detectionScore < 0.4) { // Lower threshold for mobile
       return { score: 0.5, message: 'Please ensure good lighting', isGood: false };
     }
     
-    return { score: 0.9, message: 'Face quality is excellent', isGood: true };
+    return { score: 0.9, message: 'Face detected - ready to capture!', isGood: true };
   }
 
   async recognizeEmployee(detection: any): Promise<{ employee: any; confidence: number } | null> {
