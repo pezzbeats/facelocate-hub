@@ -62,22 +62,40 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
 
   const initializeCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      // Mobile-optimized camera constraints
+      const constraints = {
         video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 },
+          facingMode: 'user',
+          frameRate: { ideal: 30, max: 30 }
         },
         audio: false
-      });
+      };
+
+      console.log('Requesting camera access with constraints:', constraints);
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         setStream(mediaStream);
         setCameraStatus('ready');
-        // Automatically start capturing mode when camera is ready
-        setRegistrationStep('capturing');
-        startFaceDetection();
+        
+        // Wait for video to be ready before starting detection
+        videoRef.current.onloadedmetadata = () => {
+          console.log('Video metadata loaded, starting face detection');
+          setRegistrationStep('capturing');
+          startFaceDetection();
+        };
+        
+        // Fallback - start detection after a short delay
+        setTimeout(() => {
+          if (registrationStep !== 'capturing') {
+            console.log('Fallback: Starting face detection after timeout');
+            setRegistrationStep('capturing');
+            startFaceDetection();
+          }
+        }, 2000);
       }
     } catch (error) {
       console.error('Camera access error:', error);
@@ -91,6 +109,8 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
   };
 
   const startFaceDetection = () => {
+    let detectionInterval: NodeJS.Timeout;
+    
     const detectFaces = async () => {
       if (videoRef.current && registrationStep === 'capturing') {
         try {
@@ -101,7 +121,19 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
             return;
           }
 
-          console.log('Attempting face detection...');
+          // Additional mobile check - ensure video dimensions are available
+          if (videoRef.current.videoWidth === 0 || videoRef.current.videoHeight === 0) {
+            console.log('Video dimensions not available yet');
+            setFaceQuality({ score: 0, message: 'Initializing camera...', isGood: false });
+            return;
+          }
+
+          console.log('Attempting face detection..., video ready:', {
+            readyState: videoRef.current.readyState,
+            width: videoRef.current.videoWidth,
+            height: videoRef.current.videoHeight
+          });
+          
           const detection = await faceRecognitionService.detectFace(videoRef.current);
           
           if (detection) {
@@ -115,33 +147,20 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
           }
         } catch (error) {
           console.error('Face detection error:', error);
-          setFaceQuality({ score: 0, message: 'Face detection failed', isGood: false });
+          setFaceQuality({ score: 0, message: 'Detection error - please try again', isGood: false });
         }
       }
     };
 
-    // Wait for video to be ready, then start detection
-    const startDetection = () => {
-      if (videoRef.current) {
-        const video = videoRef.current;
-        if (video.readyState >= 2) {
-          console.log('Video ready, starting face detection');
-          detectFaces();
-          const interval = setInterval(detectFaces, 500);
-          return () => clearInterval(interval);
-        } else {
-          console.log('Video not ready, waiting for loadeddata event');
-          video.addEventListener('loadeddata', () => {
-            console.log('Video loaded, starting face detection');
-            detectFaces();
-            const interval = setInterval(detectFaces, 500);
-            return () => clearInterval(interval);
-          }, { once: true });
-        }
+    // Start detection immediately, then every 1000ms (slower for mobile)
+    detectFaces();
+    detectionInterval = setInterval(detectFaces, 1000);
+    
+    return () => {
+      if (detectionInterval) {
+        clearInterval(detectionInterval);
       }
     };
-
-    return startDetection();
   };
 
   const captureFace = async () => {
