@@ -286,7 +286,20 @@ const KioskInterface = () => {
     let recognitionInterval: NodeJS.Timeout;
 
     const recognitionLoop = async () => {
-      if (!faceDetectionActive || !videoRef.current) return;
+      // Stop recognition loop if:
+      // 1. Face detection is disabled
+      // 2. No video element
+      // 3. Currently processing an employee (prevents race conditions)
+      // 4. Currently showing results or errors
+      if (!faceDetectionActive || !videoRef.current || currentEmployee || isProcessing) {
+        console.log('🛑 Skipping recognition loop:', {
+          faceDetectionActive,
+          hasVideo: !!videoRef.current,
+          hasCurrentEmployee: !!currentEmployee,
+          isProcessing
+        });
+        return;
+      }
 
       try {
         setIsProcessing(true);
@@ -299,11 +312,22 @@ const KioskInterface = () => {
             const quality = faceRecognition.assessFaceQuality(detection);
             
             if (quality.isGood) {
+              console.log('✅ Good quality face detected, attempting recognition...');
               setCurrentEmployee({ recognizing: true });
               
               const recognition = await faceRecognition.recognizeEmployee(detection);
               
-              if (recognition && recognition.confidence > 0.75) { // Match threshold with FaceRecognitionService
+              if (recognition && recognition.confidence > 0.75) {
+                console.log('🎯 Employee recognized successfully:', {
+                  employee: recognition.employee.full_name,
+                  confidence: recognition.confidence
+                });
+                
+                // Stop the recognition loop by clearing the interval
+                if (recognitionInterval) {
+                  clearInterval(recognitionInterval);
+                }
+                
                 await handleEmployeeRecognized(recognition.employee, recognition.confidence);
                 return;
               } else {
@@ -314,24 +338,46 @@ const KioskInterface = () => {
                   threshold: 0.75
                 });
                 setCurrentEmployee({ error: 'Face not recognized. Please try again or contact admin.' });
+                
+                // Stop recognition loop temporarily to show error
+                if (recognitionInterval) {
+                  clearInterval(recognitionInterval);
+                }
+                
                 setTimeout(() => {
                   setCurrentEmployee(null);
+                  setIsProcessing(false);
+                  // Restart recognition loop after error clears
+                  startFaceRecognitionLoop();
                 }, 3000);
                 return;
               }
+            } else {
+              console.log('📏 Face quality not good enough:', quality.message);
             }
+          } else {
+            console.log('👤 No face detected in frame');
           }
         } catch (faceError) {
           console.warn('Face recognition error, falling back to manual mode:', faceError);
         }
         
-        // Reset to standby if no face detected
+        // Reset processing state if no face detected or quality issues
         setIsProcessing(false);
       } catch (error) {
         console.error('Recognition loop error:', error);
         setCurrentEmployee({ error: 'Recognition error. Please try again.' });
+        
+        // Stop recognition loop temporarily
+        if (recognitionInterval) {
+          clearInterval(recognitionInterval);
+        }
+        
         setTimeout(() => {
           setCurrentEmployee(null);
+          setIsProcessing(false);
+          // Restart recognition loop after error clears
+          startFaceRecognitionLoop();
         }, 3000);
       }
     };
@@ -377,6 +423,8 @@ const KioskInterface = () => {
       setTimeout(() => {
         setCurrentEmployee(null);
         setAttendanceAction(null);
+        setIsProcessing(false);
+        startFaceRecognitionLoop();
       }, 3000);
 
     } catch (error: any) {
@@ -467,10 +515,19 @@ const KioskInterface = () => {
         setCurrentEmployee(null);
         setAttendanceAction(null);
         setEmployeeStatus(null);
+        setIsProcessing(false);
+        // Restart recognition loop after processing complete
+        startFaceRecognitionLoop();
       }, 3000);
 
     } catch (error: any) {
       setError(error.message);
+      setCurrentEmployee(null);
+      setIsProcessing(false);
+      // Restart recognition loop after error
+      setTimeout(() => {
+        startFaceRecognitionLoop();
+      }, 2000);
     }
   };
 
