@@ -42,17 +42,53 @@ export const useSecureAuth = () => {
   // Check admin status
   const checkAdminStatus = useCallback(async (userId: string) => {
     try {
-      const { data, error } = await supabase
+      console.log('🔍 Checking admin status for user ID:', userId);
+      
+      // First check by user ID
+      let { data, error } = await supabase
         .from('admin_users')
-        .select('role, is_active')
+        .select('role, is_active, email, id')
         .eq('id', userId)
         .eq('is_active', true)
         .maybeSingle();
 
+      console.log('📊 Admin query by ID result:', { data, error: error?.message });
+      
+      // If not found by ID, try by email (for migration compatibility)
+      if (!data && !error) {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          console.log('🔄 Trying to find admin by email:', user.email);
+          const { data: emailData, error: emailError } = await supabase
+            .from('admin_users')
+            .select('role, is_active, email, id')
+            .eq('email', user.email)
+            .eq('is_active', true)
+            .maybeSingle();
+          
+          console.log('📊 Admin query by email result:', { data: emailData, error: emailError?.message });
+          
+          if (emailData) {
+            // Update the admin_users record with the correct auth user ID
+            await supabase
+              .from('admin_users')
+              .update({ id: userId })
+              .eq('email', user.email);
+            
+            console.log('✅ Updated admin record with correct user ID');
+            data = emailData;
+          }
+        }
+      }
+      
       if (error) throw error;
-      setIsAdmin(!!data);
-      return !!data;
+      
+      const isAdmin = !!data;
+      console.log('👑 Final admin status:', isAdmin);
+      setIsAdmin(isAdmin);
+      return isAdmin;
     } catch (error) {
+      console.log('❌ Admin check error:', error);
       setIsAdmin(false);
       return false;
     }
