@@ -164,12 +164,21 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
   };
 
   const captureFace = async () => {
-    if (!videoRef.current) return;
+    if (!videoRef.current) {
+      toast({
+        title: "Camera Error",
+        description: "Camera not ready. Please wait for initialization.",
+        variant: "destructive"
+      });
+      return;
+    }
 
     try {
+      console.log('Starting face capture...');
       const faceDescriptor = await faceRecognitionService.captureAndEncodeFace(videoRef.current);
       
       if (faceDescriptor) {
+        console.log('Face captured successfully, descriptor length:', faceDescriptor.length);
         setCapturedFaces(prev => [...prev, faceDescriptor]);
         
         if (currentCapture < totalCaptures - 1) {
@@ -180,11 +189,13 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
           });
         } else {
           // All captures complete
+          console.log('All captures complete, saving face data...');
           setRegistrationStep('processing');
           await saveFaceData([...capturedFaces, faceDescriptor]);
         }
       }
     } catch (error: any) {
+      console.error('Face capture error:', error);
       toast({
         title: "Capture Failed",
         description: error.message || "Failed to capture face. Please try again.",
@@ -195,6 +206,7 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
 
   const saveFaceData = async (faceDescriptors: Float32Array[]) => {
     try {
+      console.log('Starting to save face data...');
       // Convert Float32Array to regular arrays for JSON storage
       const encodings = faceDescriptors.map(desc => Array.from(desc));
 
@@ -207,22 +219,26 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
       console.log('Saving face data for employee:', employee.id);
       console.log('Current user:', user.id);
       console.log('Face encodings length:', encodings.length);
+      console.log('Each encoding length:', encodings[0]?.length);
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('employees')
         .update({
           face_encodings: encodings,
           face_registered: true,
           face_registration_date: new Date().toISOString()
         })
-        .eq('id', employee.id);
+        .eq('id', employee.id)
+        .select();
 
       if (error) {
         console.error('Database update error:', error);
         throw error;
       }
 
-      // Check if face_registration_logs table exists before logging
+      console.log('Face data saved successfully:', data);
+
+      // Log the registration attempt
       try {
         await supabase
           .from('face_registration_logs')
@@ -230,8 +246,10 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
             employee_id: employee.id,
             attempt_number: 1,
             success: true,
-            quality_score: faceQuality?.score || 0
+            quality_score: faceQuality?.score || 0.9,
+            registered_by: user.id
           });
+        console.log('Registration logged successfully');
       } catch (logError) {
         console.warn('Could not log registration attempt:', logError);
         // Don't fail the registration if logging fails
@@ -239,7 +257,7 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
 
       setRegistrationStep('complete');
       toast({
-        title: "Face Registration Complete",
+        title: "Face Registration Complete!",
         description: `${employee.full_name}'s face has been registered successfully.`,
       });
 
@@ -251,7 +269,7 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
       console.error('Face registration save error:', error);
       toast({
         title: "Registration Failed",
-        description: error.message || "Failed to save face data.",
+        description: error.message || "Failed to save face data to database.",
         variant: "destructive"
       });
       setRegistrationStep('capturing');

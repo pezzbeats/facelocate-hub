@@ -173,13 +173,16 @@ export class FaceRecognitionService {
 
   async captureAndEncodeFace(videoElement: HTMLVideoElement): Promise<Float32Array | null> {
     const detection = await this.detectFace(videoElement);
-    if (!detection) return null;
+    if (!detection) {
+      throw new Error('No face detected. Please ensure your face is clearly visible in the camera.');
+    }
 
     const quality = this.assessFaceQuality(detection);
     if (!quality.isGood) {
       throw new Error(quality.message);
     }
 
+    console.log('Face captured successfully with quality score:', quality.score);
     return detection.descriptor;
   }
 }
