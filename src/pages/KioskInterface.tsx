@@ -920,13 +920,13 @@ const KioskInterface = () => {
                   <p className="text-xl text-muted-foreground">{currentEmployee.error}</p>
                 </div>
               </div>
-            ) : attendanceAction?.result || attendanceAction?.message ? (
+            ) : attendanceAction?.result && attendanceAction?.result.message ? (
               <div className="space-y-6">
                 <CheckCircle2 className="h-20 w-20 mx-auto text-success" />
                 <div>
                   <h2 className="text-4xl font-bold text-success mb-2">Success!</h2>
                   <p className="text-xl text-muted-foreground">
-                    {attendanceAction?.result?.message || attendanceAction?.message}
+                    {attendanceAction.result.message}
                   </p>
                   {currentEmployee && (
                     <div className="mt-4 p-4 bg-muted/20 rounded-lg">
