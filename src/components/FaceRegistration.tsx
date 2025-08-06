@@ -234,7 +234,10 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
       console.log('Face encodings length:', encodings.length);
       console.log('Each encoding length:', encodings[0]?.length);
 
-      const { data, error } = await supabase
+      // Add timeout to prevent hanging
+      console.log('📤 Sending update to database...');
+      
+      const updatePromise = supabase
         .from('employees')
         .update({
           face_encodings: encodings,
@@ -244,8 +247,15 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
         .eq('id', employee.id)
         .select();
 
+      // Set a 15-second timeout for the database operation
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Database save timeout - please try again')), 15000);
+      });
+
+      const { data, error } = await Promise.race([updatePromise, timeoutPromise]) as any;
+
       if (error) {
-        console.error('Database update error:', error);
+        console.error('❌ Database update error:', error);
         throw error;
       }
 
