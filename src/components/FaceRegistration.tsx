@@ -164,7 +164,13 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
   };
 
   const captureFace = async () => {
+    console.log('🎯 Capture Face button clicked!');
+    console.log('📹 Video ref current:', !!videoRef.current);
+    console.log('✅ Face quality good:', faceQuality?.isGood);
+    console.log('📊 Face quality:', faceQuality);
+    
     if (!videoRef.current) {
+      console.log('❌ Video ref not available');
       toast({
         title: "Camera Error",
         description: "Camera not ready. Please wait for initialization.",
@@ -174,11 +180,11 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
     }
 
     try {
-      console.log('Starting face capture...');
+      console.log('🚀 Starting face capture...');
       const faceDescriptor = await faceRecognitionService.captureAndEncodeFace(videoRef.current);
       
       if (faceDescriptor) {
-        console.log('Face captured successfully, descriptor length:', faceDescriptor.length);
+        console.log('✅ Face captured successfully, descriptor length:', faceDescriptor.length);
         setCapturedFaces(prev => [...prev, faceDescriptor]);
         
         if (currentCapture < totalCaptures - 1) {
@@ -189,13 +195,20 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
           });
         } else {
           // All captures complete
-          console.log('All captures complete, saving face data...');
+          console.log('🎉 All captures complete, saving face data...');
           setRegistrationStep('processing');
           await saveFaceData([...capturedFaces, faceDescriptor]);
         }
+      } else {
+        console.log('❌ No face descriptor returned');
+        toast({
+          title: "Capture Failed",
+          description: "No face detected. Please ensure your face is visible.",
+          variant: "destructive"
+        });
       }
     } catch (error: any) {
-      console.error('Face capture error:', error);
+      console.error('💥 Face capture error:', error);
       toast({
         title: "Capture Failed",
         description: error.message || "Failed to capture face. Please try again.",
