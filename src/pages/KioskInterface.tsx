@@ -352,11 +352,19 @@ const KioskInterface = () => {
       videoElement.srcObject = mediaStream;
       setCameraStream(mediaStream);
       
+      // Immediately activate face detection
+      console.log('🎬 Setting face detection active immediately');
+      setFaceDetectionActive(true);
+      
       // Wait for video to be ready before starting face detection
       const startFaceDetection = () => {
         console.log('📹 Video ready, starting face detection');
         setFaceDetectionActive(true);
-        startFaceRecognitionLoop();
+        setTimeout(() => {
+          console.log('🔄 Double-ensuring face detection is active');
+          setFaceDetectionActive(true);
+          startFaceRecognitionLoop();
+        }, 500);
       };
 
       videoElement.onloadedmetadata = startFaceDetection;
