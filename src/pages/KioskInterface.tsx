@@ -771,32 +771,61 @@ const KioskInterface = () => {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 flex items-center justify-center p-6">
-        <Card className="w-full max-w-md">
-          <CardHeader className="text-center">
-            <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
-            <CardTitle>System Error</CardTitle>
-            <CardDescription>{error}</CardDescription>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <Button onClick={async () => {
-              setError(null);
-              setIsLoading(true);
-              try {
-                await initializeCamera();
-                setIsLoading(false);
-              } catch (error: any) {
-                setError(error.message);
-                setIsLoading(false);
-              }
-            }}>
-              Retry Camera Access
-            </Button>
-            <Button variant="outline" onClick={() => window.location.reload()}>
-              Refresh Page
-            </Button>
-          </CardContent>
-        </Card>
+      <div className="min-h-screen bg-gradient-to-br from-background to-muted/20 p-2">
+        {/* Hidden Video Element - Always Present for Camera Access */}
+        <video
+          ref={videoRef}
+          autoPlay
+          muted
+          playsInline
+          className="hidden"
+        />
+        
+        {/* Status Bar */}
+        <div className="flex items-center justify-between mb-4 px-4 py-2 bg-card/90 rounded-lg shadow-sm">
+          <div className="flex items-center gap-4">
+            <img src={jusTrackLogo} alt="JusTrack" className="h-8 w-auto" />
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <MapPin className="h-4 w-4" />
+              <span>{device?.location_name || 'Loading...'}</span>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="text-lg font-mono">
+              {currentTime.toLocaleTimeString()}
+            </div>
+          </div>
+        </div>
+
+        {/* Error Display */}
+        <div className="flex items-center justify-center min-h-[calc(100vh-120px)]">
+          <Card className="w-full max-w-md">
+            <CardHeader className="text-center">
+              <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
+              <CardTitle>System Error</CardTitle>
+              <CardDescription>{error}</CardDescription>
+            </CardHeader>
+            <CardContent className="text-center space-y-4">
+              <Button onClick={async () => {
+                setError(null);
+                setIsLoading(true);
+                try {
+                  await initializeCamera();
+                  setIsLoading(false);
+                } catch (error: any) {
+                  setError(error.message);
+                  setIsLoading(false);
+                }
+              }}>
+                Retry Camera Access
+              </Button>
+              <Button variant="outline" onClick={() => window.location.reload()}>
+                Refresh Page
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
