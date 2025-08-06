@@ -353,6 +353,15 @@ const KioskInterface = () => {
       videoElement.srcObject = mediaStream;
       setCameraStream(mediaStream);
       
+      // Force video to load and play
+      try {
+        await videoElement.load();
+        await videoElement.play();
+        console.log('🎬 Video is now playing');
+      } catch (playError) {
+        console.warn('Auto-play failed, but stream is connected:', playError);
+      }
+      
       // Immediately activate face detection
       console.log('🎬 Setting face detection active immediately');
       setFaceDetectionActive(true);
@@ -368,7 +377,10 @@ const KioskInterface = () => {
         }, 500);
       };
 
+      // Multiple triggers to ensure video starts
       videoElement.onloadedmetadata = startFaceDetection;
+      videoElement.onloadeddata = startFaceDetection;
+      videoElement.oncanplay = startFaceDetection;
       
       // Fallback: Start face detection after a short delay
       setTimeout(() => {
