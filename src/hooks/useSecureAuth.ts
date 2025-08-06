@@ -1,16 +1,11 @@
-// Secure authentication hook with additional security measures
-
 import { useState, useEffect, useCallback } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
-import { RateLimiter } from '@/utils/rateLimiter';
-import SecureStorage from '@/utils/secureStorage';
+import { useToast } from '@/hooks/use-toast';
 
-interface SecurityEvent {
-  type: 'login_attempt' | 'login_success' | 'login_failure' | 'logout' | 'session_expired';
-  timestamp: number;
-  userAgent: string;
-  ipAddress?: string;
+interface LoginCredentials {
+  email: string;
+  password: string;
 }
 
 export const useSecureAuth = () => {
@@ -18,31 +13,11 @@ export const useSecureAuth = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
-
-  // Log security events
-  const logSecurityEvent = useCallback((event: Omit<SecurityEvent, 'timestamp' | 'userAgent'>) => {
-    const securityEvent: SecurityEvent = {
-      ...event,
-      timestamp: Date.now(),
-      userAgent: navigator.userAgent
-    };
-
-    // Store security events locally (in production, also send to server)
-    const events = SecureStorage.getItem<SecurityEvent[]>('security_events') || [];
-    events.push(securityEvent);
-    
-    // Keep only last 100 events
-    if (events.length > 100) {
-      events.splice(0, events.length - 100);
-    }
-    
-    SecureStorage.setItem('security_events', events, 24); // 24 hour expiry
-  }, []);
+  const { toast } = useToast();
 
   // Check admin status
   const checkAdminStatus = useCallback(async (userId: string) => {
     try {
-      console.log('🔍 Checking admin status for user:', userId);
       const { data, error } = await supabase
         .from('admin_users')
         .select('role, is_active')
@@ -51,12 +26,11 @@ export const useSecureAuth = () => {
         .maybeSingle();
 
       if (error) {
-        console.error('❌ Admin check error:', error);
-        throw error;
+        console.error('Admin check error:', error);
+        return false;
       }
       
       const adminStatus = !!data;
-      console.log('👤 Admin status result:', adminStatus);
       setIsAdmin(adminStatus);
       return adminStatus;
     } catch (error) {
@@ -66,185 +40,94 @@ export const useSecureAuth = () => {
     }
   }, []);
 
-  // Secure login with rate limiting
+  // Login function
   const secureLogin = useCallback(async (email: string, password: string) => {
-    const rateLimitKey = `login_${email}`;
-    
-    // Check rate limit
-    if (RateLimiter.isRateLimited(rateLimitKey, 5, 15 * 60 * 1000)) {
-      const resetTime = RateLimiter.getResetTime(rateLimitKey);
-      const resetMinutes = Math.ceil(resetTime / (60 * 1000));
-      throw new Error(`Too many login attempts. Please try again in ${resetMinutes} minute(s).`);
-    }
-
-    setLoading(true);
-    logSecurityEvent({ type: 'login_attempt' });
-
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
+        email: email.trim(),
         password
       });
 
-      if (error) {
-        logSecurityEvent({ type: 'login_failure' });
-        setLoading(false);
-        throw error;
-      }
-
-      if (data.user) {
-        const isAdminUser = await checkAdminStatus(data.user.id);
-        if (!isAdminUser) {
-          await supabase.auth.signOut();
-          setLoading(false);
-          throw new Error('Access denied. Admin privileges required.');
-        }
-
-        logSecurityEvent({ type: 'login_success' });
-        
-        // Store session info securely
-        SecureStorage.setItem('last_login', {
-          timestamp: Date.now(),
-          userId: data.user.id,
-          email: data.user.email
-        }, 1); // 1 hour expiry
-      }
-
-      setLoading(false);
-      return data;
-    } catch (error) {
-      logSecurityEvent({ type: 'login_failure' });
-      setLoading(false);
-      throw error;
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error: any) {
+      console.error('Login error:', error);
+      toast({
+        title: "Login Failed",
+        description: error.message || 'Invalid credentials',
+        variant: "destructive"
+      });
+      return { error, data: null };
     }
-  }, [checkAdminStatus, logSecurityEvent]);
+  }, [toast]);
 
-  // Secure logout
+  // Logout function
   const secureLogout = useCallback(async () => {
     try {
-      logSecurityEvent({ type: 'logout' });
-      
-      // Clear secure storage
-      SecureStorage.removeItem('last_login');
-      
       const { error } = await supabase.auth.signOut();
       if (error) throw error;
-      
+
       setUser(null);
       setSession(null);
       setIsAdmin(false);
-    } catch (error) {
-      console.warn('Logout error:', error);
-      // Force clear state even if logout fails
-      setUser(null);
-      setSession(null);
-      setIsAdmin(false);
+
+      return { error: null };
+    } catch (error: any) {
+      console.error('Logout error:', error);
+      return { error };
     }
-  }, [logSecurityEvent]);
-
-  // Session validation
-  const validateSession = useCallback(async (currentSession: Session) => {
-    if (!currentSession?.user) return false;
-
-    try {
-      // Check if admin status is still valid
-      const isStillAdmin = await checkAdminStatus(currentSession.user.id);
-      if (!isStillAdmin) {
-        logSecurityEvent({ type: 'session_expired' });
-        await secureLogout();
-        return false;
-      }
-
-      return true;
-    } catch (error) {
-      logSecurityEvent({ type: 'session_expired' });
-      await secureLogout();
-      return false;
-    }
-  }, [checkAdminStatus, logSecurityEvent, secureLogout]);
+  }, []);
 
   // Initialize auth state
   useEffect(() => {
     let mounted = true;
 
-    const initializeAuth = async () => {
-      try {
-        console.log('🔑 Initializing auth...');
-        // Get initial session
-        const { data: { session }, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ Session error:', error);
-          throw error;
-        }
-
-        if (session && mounted) {
-          console.log('✅ Session found, validating...');
-          const isValid = await validateSession(session);
-          if (isValid) {
-            console.log('✅ Session is valid, setting user state');
-            setSession(session);
-            setUser(session.user);
-            await checkAdminStatus(session.user.id);
-          } else {
-            console.log('❌ Session validation failed');
-          }
-        } else {
-          console.log('ℹ️ No session found');
-        }
-      } catch (error) {
-        console.warn('Auth initialization error:', error);
-      } finally {
-        if (mounted) {
-          console.log('🏁 Auth initialization complete, setting loading to false');
-          setLoading(false);
-        }
-      }
-    };
-
-    // Set up auth state listener
+    // Set up auth state listener first
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
 
-        if (event === 'SIGNED_IN' && session) {
-          const isValid = await validateSession(session);
-          if (isValid) {
-            setSession(session);
-            setUser(session.user);
-          }
-        } else if (event === 'SIGNED_OUT') {
+        if (session?.user) {
+          setSession(session);
+          setUser(session.user);
+          // Defer admin check to avoid blocking
+          setTimeout(() => {
+            if (mounted) {
+              checkAdminStatus(session.user.id);
+            }
+          }, 0);
+        } else {
           setSession(null);
           setUser(null);
           setIsAdmin(false);
-        } else if (event === 'TOKEN_REFRESHED' && session) {
-          const isValid = await validateSession(session);
-          if (isValid) {
-            setSession(session);
-            setUser(session.user);
-          }
         }
+        
+        setLoading(false);
       }
     );
 
-    initializeAuth();
+    // Then check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!mounted) return;
+      
+      if (session?.user) {
+        setSession(session);
+        setUser(session.user);
+        checkAdminStatus(session.user.id);
+      } else {
+        setSession(null);
+        setUser(null);
+        setIsAdmin(false);
+      }
+      
+      setLoading(false);
+    });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [validateSession, checkAdminStatus]);
-
-  // Session timeout check (every 5 minutes)
-  useEffect(() => {
-    if (!session) return;
-
-    const interval = setInterval(async () => {
-      await validateSession(session);
-    }, 5 * 60 * 1000);
-
-    return () => clearInterval(interval);
-  }, [session, validateSession]);
+  }, [checkAdminStatus]);
 
   return {
     user,
