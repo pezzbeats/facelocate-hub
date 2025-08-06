@@ -391,11 +391,12 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
             <>
               <Button 
                 onClick={captureFace} 
-                disabled={!faceQuality?.isGood}
+                disabled={false}
                 size="lg"
+                className="cursor-pointer"
               >
                 <Camera className="mr-2 h-4 w-4" />
-                Capture Face
+                Capture Face {faceQuality?.isGood ? '✓' : ''}
               </Button>
               <Button variant="outline" onClick={resetCapture}>
                 <RotateCcw className="mr-2 h-4 w-4" />
