@@ -6,7 +6,8 @@ import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { faceRecognitionService } from "@/services/FaceRecognitionService";
-import { Camera, CheckCircle2, XCircle, RotateCcw, Save } from "lucide-react";
+import { useSecureAuth } from "@/hooks/useSecureAuth";
+import { Camera, CheckCircle2, XCircle, RotateCcw, Save, AlertTriangle } from "lucide-react";
 
 interface FaceRegistrationProps {
   employee: {
@@ -29,6 +30,7 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
   const [faceQuality, setFaceQuality] = useState<{ score: number; message: string; isGood: boolean } | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const { toast } = useToast();
+  const { user, session, isAdmin } = useSecureAuth();
 
   const totalCaptures = 3; // Front, slight left, slight right
   const captureInstructions = [
@@ -224,9 +226,12 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
       const encodings = faceDescriptors.map(desc => Array.from(desc));
 
       // Check current user authentication
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        throw new Error('Authentication required to save face data');
+      if (!user || !session) {
+        throw new Error('Authentication required - please log in again');
+      }
+      
+      if (!isAdmin) {
+        throw new Error('Admin privileges required to register faces');
       }
 
       console.log('Saving face data for employee:', employee.id);
@@ -388,14 +393,28 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
           </div>
         )}
 
-        {/* Action Buttons */}
-        <div className="flex justify-center gap-4">
-          {registrationStep === 'setup' && (
-            <Button onClick={() => setRegistrationStep('capturing')} size="lg">
-              <Camera className="mr-2 h-4 w-4" />
-              Start Registration
+      {/* Authentication Check */}
+        {!user || !isAdmin ? (
+          <div className="text-center p-4 bg-muted rounded-lg">
+            <AlertTriangle className="h-8 w-8 text-warning mx-auto mb-2" />
+            <p className="text-warning font-medium mb-2">Authentication Required</p>
+            <p className="text-sm text-muted-foreground">
+              You must be logged in as an admin to register faces.
+            </p>
+            <Button variant="outline" onClick={onCancel} className="mt-4">
+              Go Back
             </Button>
-          )}
+          </div>
+        ) : (
+          <>
+            {/* Action Buttons */}
+            <div className="flex justify-center gap-4">
+              {registrationStep === 'setup' && (
+                <Button onClick={() => setRegistrationStep('capturing')} size="lg">
+                  <Camera className="mr-2 h-4 w-4" />
+                  Start Registration
+                </Button>
+              )}
 
           {registrationStep === 'capturing' && (
             <>
@@ -430,11 +449,13 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
           )}
         </div>
 
-        <div className="text-center">
-          <Button variant="ghost" onClick={onCancel}>
-            Cancel Registration
-          </Button>
-        </div>
+            <div className="text-center">
+              <Button variant="ghost" onClick={onCancel}>
+                Cancel Registration
+              </Button>
+            </div>
+          </>
+        )}
       </CardContent>
     </Card>
   );
