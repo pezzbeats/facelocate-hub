@@ -260,6 +260,7 @@ const KioskInterface = () => {
 
   const initializeCamera = async () => {
     try {
+      console.log('🎥 Initializing camera...');
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: {
           width: { ideal: 1280 },
@@ -269,11 +270,28 @@ const KioskInterface = () => {
         audio: false
       });
 
+      console.log('✅ Camera stream obtained');
+
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
         setCameraStream(mediaStream);
-        setFaceDetectionActive(true);
-        startFaceRecognitionLoop();
+        
+        // Wait for video to be ready before starting face detection
+        videoRef.current.onloadedmetadata = () => {
+          console.log('📹 Video metadata loaded, starting face detection');
+          setFaceDetectionActive(true);
+          startFaceRecognitionLoop();
+        };
+        
+        // Fallback: Start face detection after a short delay
+        setTimeout(() => {
+          console.log('⏰ Fallback: Ensuring face detection is active');
+          setFaceDetectionActive(true);
+          startFaceRecognitionLoop();
+        }, 2000);
+      } else {
+        console.error('❌ Video ref not available');
+        throw new Error('Video element not available');
       }
     } catch (error) {
       console.error('Camera access error:', error);
