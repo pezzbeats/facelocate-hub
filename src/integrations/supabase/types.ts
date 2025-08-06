@@ -855,6 +855,14 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: boolean
       }
+      current_user_is_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
+      current_user_is_super_admin: {
+        Args: Record<PropertyKey, never>
+        Returns: boolean
+      }
       determine_attendance_action: {
         Args: { emp_id: string; current_location_id: string }
         Returns: Json
