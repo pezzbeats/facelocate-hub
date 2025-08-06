@@ -147,6 +147,10 @@ const LocationManagement = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    console.log('🔄 Starting location update/create process');
+    console.log('📝 Form data:', formData);
+    console.log('✏️ Editing location:', editingLocation);
 
     execute(async () => {
       const locationData = {
@@ -160,29 +164,51 @@ const LocationManagement = () => {
         timezone: formData.timezone
       };
 
+      console.log('📊 Processed location data:', locationData);
+
       if (editingLocation) {
         // Update existing location
-        const { error } = await supabase
+        console.log('📝 Updating location with ID:', editingLocation.id);
+        
+        const { data, error } = await supabase
           .from('locations')
           .update(locationData)
-          .eq('id', editingLocation.id);
+          .eq('id', editingLocation.id)
+          .select();
 
-        if (error) throw error;
+        console.log('📤 Update response:', { data, error });
+        
+        if (error) {
+          console.error('❌ Update error:', error);
+          throw error;
+        }
+        
+        console.log('✅ Location updated successfully');
       } else {
         // Create new location
+        console.log('🆕 Creating new location');
         const locationCode = await generateLocationCode();
         
-        const { error } = await supabase
+        const { data, error } = await supabase
           .from('locations')
           .insert({
             ...locationData,
             location_code: locationCode
-          });
+          })
+          .select();
 
-        if (error) throw error;
+        console.log('📤 Insert response:', { data, error });
+        
+        if (error) {
+          console.error('❌ Insert error:', error);
+          throw error;
+        }
+        
+        console.log('✅ Location created successfully');
       }
 
       // Reset form and reload data
+      console.log('🧹 Resetting form and reloading data');
       setFormData({
         location_name: "",
         address: "",
@@ -196,6 +222,7 @@ const LocationManagement = () => {
       setShowAddDialog(false);
       setEditingLocation(null);
       const result = await loadLocations();
+      console.log('🔄 Reload complete');
       return result || [];
     }, {
       successMessage: editingLocation ? "Location updated successfully" : "Location added successfully"
