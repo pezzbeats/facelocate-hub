@@ -261,16 +261,67 @@ const KioskInterface = () => {
   const initializeCamera = async () => {
     try {
       console.log('🎥 Initializing camera...');
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
-        },
-        audio: false
-      });
+      
+      // Check if camera is available
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('Camera API not supported in this browser');
+      }
 
-      console.log('✅ Camera stream obtained');
+      // Get available devices first
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+        console.log('📹 Available video devices:', videoDevices.length);
+        
+        if (videoDevices.length === 0) {
+          throw new Error('No camera devices found');
+        }
+      } catch (devicesError) {
+        console.warn('Could not enumerate devices:', devicesError);
+      }
+
+      // Try to get camera stream with progressive fallbacks
+      let mediaStream: MediaStream | null = null;
+      const constraints = [
+        {
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          },
+          audio: false
+        },
+        {
+          video: {
+            width: { ideal: 640 },
+            height: { ideal: 480 },
+            facingMode: 'user'
+          },
+          audio: false
+        },
+        {
+          video: true,
+          audio: false
+        }
+      ];
+
+      for (let i = 0; i < constraints.length; i++) {
+        try {
+          console.log(`🎥 Trying camera constraint ${i + 1}/${constraints.length}`);
+          mediaStream = await navigator.mediaDevices.getUserMedia(constraints[i]);
+          console.log('✅ Camera stream obtained with constraint', i + 1);
+          break;
+        } catch (constraintError) {
+          console.warn(`❌ Constraint ${i + 1} failed:`, constraintError);
+          if (i === constraints.length - 1) {
+            throw constraintError;
+          }
+        }
+      }
+
+      if (!mediaStream) {
+        throw new Error('Unable to access camera with any configuration');
+      }
 
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
@@ -293,10 +344,26 @@ const KioskInterface = () => {
         console.error('❌ Video ref not available');
         throw new Error('Video element not available');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Camera access error:', error);
       setFaceDetectionActive(false);
-      throw new Error('Camera access denied. Please allow camera access.');
+      
+      // Provide more specific error messages
+      let errorMessage = 'Camera access denied. Please allow camera access.';
+      
+      if (error.name === 'NotAllowedError') {
+        errorMessage = 'Camera permission denied. Please click "Allow" when prompted and refresh the page.';
+      } else if (error.name === 'NotFoundError') {
+        errorMessage = 'No camera found. Please ensure a camera is connected.';
+      } else if (error.name === 'NotReadableError') {
+        errorMessage = 'Camera is being used by another application. Please close other apps and try again.';
+      } else if (error.name === 'OverconstrainedError') {
+        errorMessage = 'Camera does not support the required resolution. Trying with basic settings...';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+      
+      throw new Error(errorMessage);
     }
   };
 
@@ -688,8 +755,21 @@ const KioskInterface = () => {
             <CardDescription>{error}</CardDescription>
           </CardHeader>
           <CardContent className="text-center space-y-4">
-            <Button onClick={() => window.location.reload()}>
-              Retry
+            <Button onClick={async () => {
+              setError(null);
+              setIsLoading(true);
+              try {
+                await initializeCamera();
+                setIsLoading(false);
+              } catch (error: any) {
+                setError(error.message);
+                setIsLoading(false);
+              }
+            }}>
+              Retry Camera Access
+            </Button>
+            <Button variant="outline" onClick={() => window.location.reload()}>
+              Refresh Page
             </Button>
           </CardContent>
         </Card>
