@@ -94,11 +94,23 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
     const detectFaces = async () => {
       if (videoRef.current && registrationStep === 'capturing') {
         try {
+          // Ensure video is playing and has loaded
+          if (videoRef.current.readyState < 2) {
+            console.log('Video not ready yet, waiting...');
+            setFaceQuality({ score: 0, message: 'Camera loading...', isGood: false });
+            return;
+          }
+
+          console.log('Attempting face detection...');
           const detection = await faceRecognitionService.detectFace(videoRef.current);
+          
           if (detection) {
+            console.log('Face detected, assessing quality...');
             const quality = faceRecognitionService.assessFaceQuality(detection);
+            console.log('Face quality:', quality);
             setFaceQuality(quality);
           } else {
+            console.log('No face detected');
             setFaceQuality({ score: 0, message: 'No face detected', isGood: false });
           }
         } catch (error) {
@@ -108,10 +120,28 @@ const FaceRegistration = ({ employee, onComplete, onCancel }: FaceRegistrationPr
       }
     };
 
-    // Start detecting immediately, then every 500ms
-    detectFaces();
-    const interval = setInterval(detectFaces, 500);
-    return () => clearInterval(interval);
+    // Wait for video to be ready, then start detection
+    const startDetection = () => {
+      if (videoRef.current) {
+        const video = videoRef.current;
+        if (video.readyState >= 2) {
+          console.log('Video ready, starting face detection');
+          detectFaces();
+          const interval = setInterval(detectFaces, 500);
+          return () => clearInterval(interval);
+        } else {
+          console.log('Video not ready, waiting for loadeddata event');
+          video.addEventListener('loadeddata', () => {
+            console.log('Video loaded, starting face detection');
+            detectFaces();
+            const interval = setInterval(detectFaces, 500);
+            return () => clearInterval(interval);
+          }, { once: true });
+        }
+      }
+    };
+
+    return startDetection();
   };
 
   const captureFace = async () => {
