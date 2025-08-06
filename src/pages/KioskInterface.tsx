@@ -434,7 +434,7 @@ const KioskInterface = () => {
               
               const recognition = await faceRecognition.recognizeEmployee(detection);
               
-              if (recognition && recognition.confidence > 0.75) {
+              if (recognition && recognition.confidence > 0.70) {
                 console.log('🎯 Employee recognized successfully:', {
                   employee: recognition.employee.full_name,
                   confidence: recognition.confidence
@@ -452,7 +452,7 @@ const KioskInterface = () => {
                 console.log('⚠️ Face detected but not recognized:', {
                   hasRecognition: !!recognition,
                   confidence: recognition?.confidence || 0,
-                  threshold: 0.75
+                  threshold: 0.70
                 });
                 setCurrentEmployee({ error: 'Face not recognized. Please try again or contact admin.' });
                 
@@ -1077,7 +1077,7 @@ const KioskInterface = () => {
                   )}
                 </div>
               </div>
-            ) : currentEmployee && attendanceAction && !attendanceAction?.result && !attendanceAction?.message ? (
+            ) : currentEmployee && attendanceAction && !attendanceAction?.result ? (
               // Employee is checked in - show action options
               <div className="space-y-6">
                 <User className="h-20 w-20 mx-auto text-primary" />

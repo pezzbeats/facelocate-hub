@@ -172,7 +172,7 @@ export class FaceRecognitionService {
         
         if (confidence > highestConfidence) {
           highestConfidence = confidence;
-          if (confidence > 0.75) { // Lowered threshold from 0.85 to 0.75
+          if (confidence > 0.70) { // Lowered threshold from 0.75 to 0.70
             bestMatch = { employee, confidence };
           }
         }
