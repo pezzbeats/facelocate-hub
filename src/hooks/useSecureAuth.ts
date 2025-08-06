@@ -42,7 +42,6 @@ export const useSecureAuth = () => {
   // Check admin status
   const checkAdminStatus = useCallback(async (userId: string) => {
     try {
-      console.log('🔍 Checking admin status for user:', userId);
       const { data, error } = await supabase
         .from('admin_users')
         .select('role, is_active')
@@ -50,16 +49,10 @@ export const useSecureAuth = () => {
         .eq('is_active', true)
         .maybeSingle();
 
-      console.log('📊 Admin query result:', { data, error: error?.message });
-      
       if (error) throw error;
-      
-      const isAdmin = !!data;
-      console.log('👑 Final admin status:', isAdmin);
-      setIsAdmin(isAdmin);
-      return isAdmin;
+      setIsAdmin(!!data);
+      return !!data;
     } catch (error) {
-      console.log('❌ Admin check error:', error);
       setIsAdmin(false);
       return false;
     }
@@ -69,49 +62,36 @@ export const useSecureAuth = () => {
   const secureLogin = useCallback(async (email: string, password: string) => {
     const rateLimitKey = `login_${email}`;
     
-    console.log('🔐 Starting secure login for:', email);
-    
     // Check rate limit
     if (RateLimiter.isRateLimited(rateLimitKey, 5, 15 * 60 * 1000)) {
       const resetTime = RateLimiter.getResetTime(rateLimitKey);
       const resetMinutes = Math.ceil(resetTime / (60 * 1000));
-      console.log('❌ Rate limited');
       throw new Error(`Too many login attempts. Please try again in ${resetMinutes} minute(s).`);
     }
 
     setLoading(true);
-    console.log('⏳ Set loading to true');
     logSecurityEvent({ type: 'login_attempt' });
 
     try {
-      console.log('🚀 Attempting Supabase auth...');
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password
       });
 
-      console.log('📥 Auth response:', { data: !!data, error: error?.message });
-
       if (error) {
-        console.log('❌ Auth error:', error.message);
         logSecurityEvent({ type: 'login_failure' });
         setLoading(false);
         throw error;
       }
 
       if (data.user) {
-        console.log('👤 User found, checking admin status...');
         const isAdminUser = await checkAdminStatus(data.user.id);
-        console.log('🔑 Admin status:', isAdminUser);
-        
         if (!isAdminUser) {
-          console.log('❌ Not an admin, signing out...');
           await supabase.auth.signOut();
           setLoading(false);
           throw new Error('Access denied. Admin privileges required.');
         }
 
-        console.log('✅ Admin verified, logging success...');
         logSecurityEvent({ type: 'login_success' });
         
         // Store session info securely
@@ -122,11 +102,9 @@ export const useSecureAuth = () => {
         }, 1); // 1 hour expiry
       }
 
-      console.log('✅ Login complete, setting loading to false');
       setLoading(false);
       return data;
     } catch (error) {
-      console.log('💥 Login error:', error);
       logSecurityEvent({ type: 'login_failure' });
       setLoading(false);
       throw error;
