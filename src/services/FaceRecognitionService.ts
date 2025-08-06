@@ -150,23 +150,40 @@ export class FaceRecognitionService {
 
   async recognizeEmployee(detection: any): Promise<{ employee: any; confidence: number } | null> {
     if (!detection || this.employeeDescriptors.size === 0) {
+      console.log('🔍 Recognition failed: no detection or no employee descriptors', {
+        hasDetection: !!detection,
+        employeeCount: this.employeeDescriptors.size
+      });
       return null;
     }
 
     let bestMatch: { employee: any; confidence: number } | null = null;
     let highestConfidence = 0;
+    const allMatches: Array<{ employee: string; confidence: number }> = [];
+
+    console.log('🔍 Starting face recognition with', this.employeeDescriptors.size, 'employees');
 
     for (const [employeeId, { descriptors, employee }] of this.employeeDescriptors) {
       for (const storedDescriptor of descriptors) {
         const distance = faceapi.euclideanDistance(detection.descriptor, storedDescriptor);
         const confidence = Math.max(0, 1 - distance);
         
-        if (confidence > highestConfidence && confidence > 0.85) {
+        allMatches.push({ employee: employee.full_name, confidence });
+        
+        if (confidence > highestConfidence) {
           highestConfidence = confidence;
-          bestMatch = { employee, confidence };
+          if (confidence > 0.75) { // Lowered threshold from 0.85 to 0.75
+            bestMatch = { employee, confidence };
+          }
         }
       }
     }
+
+    console.log('🎯 Recognition results:', {
+      highestConfidence,
+      bestMatch: bestMatch ? bestMatch.employee.full_name : 'none',
+      allMatches: allMatches.sort((a, b) => b.confidence - a.confidence)
+    });
 
     return bestMatch;
   }
