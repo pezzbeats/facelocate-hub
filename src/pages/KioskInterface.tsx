@@ -258,9 +258,34 @@ const KioskInterface = () => {
     }
   };
 
+  const waitForVideoElement = (): Promise<HTMLVideoElement> => {
+    return new Promise((resolve, reject) => {
+      const maxAttempts = 20; // Wait up to 2 seconds
+      let attempts = 0;
+      
+      const checkElement = () => {
+        attempts++;
+        if (videoRef.current) {
+          console.log('✅ Video element found after', attempts, 'attempts');
+          resolve(videoRef.current);
+        } else if (attempts >= maxAttempts) {
+          reject(new Error('Video element not available after waiting'));
+        } else {
+          setTimeout(checkElement, 100);
+        }
+      };
+      
+      checkElement();
+    });
+  };
+
   const initializeCamera = async () => {
     try {
       console.log('🎥 Initializing camera...');
+      
+      // Wait for video element to be available
+      const videoElement = await waitForVideoElement();
+      console.log('📹 Video element ready, proceeding with camera setup');
       
       // Check if camera is available
       if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
@@ -323,29 +348,28 @@ const KioskInterface = () => {
         throw new Error('Unable to access camera with any configuration');
       }
 
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-        setCameraStream(mediaStream);
-        
-        // Wait for video to be ready before starting face detection
-        videoRef.current.onloadedmetadata = () => {
-          console.log('📹 Video metadata loaded, starting face detection');
-          setFaceDetectionActive(true);
-          startFaceRecognitionLoop();
-        };
-        
-        // Fallback: Start face detection after a short delay
-        setTimeout(() => {
-          console.log('⏰ Fallback: Ensuring face detection is active');
-          setFaceDetectionActive(true);
-          startFaceRecognitionLoop();
-        }, 2000);
-      } else {
-        console.error('❌ Video ref not available');
-        throw new Error('Video element not available');
-      }
+      // Set up video stream
+      videoElement.srcObject = mediaStream;
+      setCameraStream(mediaStream);
+      
+      // Wait for video to be ready before starting face detection
+      const startFaceDetection = () => {
+        console.log('📹 Video ready, starting face detection');
+        setFaceDetectionActive(true);
+        startFaceRecognitionLoop();
+      };
+
+      videoElement.onloadedmetadata = startFaceDetection;
+      
+      // Fallback: Start face detection after a short delay
+      setTimeout(() => {
+        console.log('⏰ Fallback: Ensuring face detection is active');
+        setFaceDetectionActive(true);
+        startFaceRecognitionLoop();
+      }, 2000);
+
     } catch (error: any) {
-      console.error('Camera access error:', error);
+      console.error('Camera initialization error:', error);
       setFaceDetectionActive(false);
       
       // Provide more specific error messages
