@@ -34,6 +34,8 @@ const AdminLogin = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    console.log('🚀 Login form submitted');
+    
     if (!formData.email || !formData.password) {
       toast({
         title: "Missing Fields",
@@ -44,16 +46,22 @@ const AdminLogin = () => {
     }
 
     try {
+      console.log('📧 Attempting login with email:', formData.email);
+      console.log('🔑 Secure login function available:', typeof secureLogin);
+      
       await secureLogin(formData.email, formData.password);
       
+      console.log('✅ Login successful, showing success toast');
       toast({
         title: "Welcome back!",
         description: "Successfully logged in"
       });
 
+      console.log('🔄 Navigating to dashboard');
       navigate('/admin/dashboard');
 
     } catch (error: any) {
+      console.log('❌ Login failed with error:', error);
       toast({
         title: "Login Failed",
         description: error.message || "Invalid credentials. Please try again.",
