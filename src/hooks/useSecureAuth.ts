@@ -86,6 +86,8 @@ export const useSecureAuth = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
         if (!mounted) return;
+        
+        console.log('🔄 Auth state change:', { event, hasSession: !!session, hasUser: !!session?.user });
 
         if (session?.user) {
           setSession(session);
@@ -93,6 +95,7 @@ export const useSecureAuth = () => {
           // Defer admin check to avoid blocking
           setTimeout(() => {
             if (mounted) {
+              console.log('🔍 Checking admin status for user:', session.user.id);
               checkAdminStatus(session.user.id);
             }
           }, 0);
@@ -110,9 +113,12 @@ export const useSecureAuth = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!mounted) return;
       
+      console.log('🔍 Initial session check:', { hasSession: !!session, hasUser: !!session?.user });
+      
       if (session?.user) {
         setSession(session);
         setUser(session.user);
+        console.log('🔍 Initial admin check for user:', session.user.id);
         checkAdminStatus(session.user.id);
       } else {
         setSession(null);
@@ -120,6 +126,9 @@ export const useSecureAuth = () => {
         setIsAdmin(false);
       }
       
+      setLoading(false);
+    }).catch((error) => {
+      console.error('Session check error:', error);
       setLoading(false);
     });
 

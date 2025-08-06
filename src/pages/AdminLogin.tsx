@@ -24,12 +24,19 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const { user, loading, secureLogin } = useSecureAuth();
 
-  // Check if user is already logged in
+  // Check if user is already logged in - prevent redirect loops
   useEffect(() => {
-    if (user) {
-      navigate('/admin/dashboard');
+    console.log('🔍 AdminLogin: Checking user state:', { 
+      hasUser: !!user, 
+      loading,
+      userId: user?.id 
+    });
+    
+    if (user && !loading) {
+      console.log('✅ AdminLogin: User authenticated, redirecting to dashboard');
+      navigate('/admin/dashboard', { replace: true });
     }
-  }, [user, navigate]);
+  }, [user, loading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
