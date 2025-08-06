@@ -491,8 +491,10 @@ const KioskInterface = () => {
       setCurrentEmployee(employee);
       setAttendanceAction(action);
 
-      // Show action options for checked-in employees
+      // Show action options for checked-in employees at the same location
       if (action.action === 'clock_out' || (status && (status as any).status === 'checked_in')) {
+        console.log('🔄 Employee already checked in, showing action options');
+        speakMessage("Hello! What would you like to do today?");
         setKioskState('standby');
         return; // Don't auto-process, show options instead
       }
@@ -935,10 +937,11 @@ const KioskInterface = () => {
                       </p>
                     )}
                   </div>
-                  
-                  {attendanceAction?.action === 'clock_out' || employeeStatus?.status === 'checked_in' ? (
-                    <div>
-                      <h3 className="text-2xl font-semibold mb-6">What would you like to do?</h3>
+                   
+                   {attendanceAction?.action === 'clock_out' || employeeStatus?.status === 'checked_in' ? (
+                     <div>
+                       <h3 className="text-2xl font-semibold mb-2">You're already clocked in!</h3>
+                       <p className="text-lg text-muted-foreground mb-6">What would you like to do?</p>
                       <div className="grid grid-cols-1 gap-4 max-w-md mx-auto">
                         <Button
                           size="lg"
