@@ -85,6 +85,7 @@ const KioskInterface = () => {
   const [selectedTempExitReason, setSelectedTempExitReason] = useState<string | null>(null);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(null);
   const [employeeStatus, setEmployeeStatus] = useState<any>(null);
+  const [userTimeout, setUserTimeout] = useState<NodeJS.Timeout | null>(null);
 
   // Network status monitoring
   useEffect(() => {
@@ -408,12 +409,14 @@ const KioskInterface = () => {
       // 2. No video element
       // 3. Currently processing an employee (prevents race conditions)
       // 4. Currently showing results or errors
+      // 5. Employee options are being displayed (NEW - prevents loop)
       if (!faceDetectionActive || !videoRef.current || currentEmployee || isProcessing) {
         console.log('🛑 Skipping recognition loop:', {
           faceDetectionActive,
           hasVideo: !!videoRef.current,
           hasCurrentEmployee: !!currentEmployee,
-          isProcessing
+          isProcessing,
+          kioskState
         });
         return;
       }
@@ -551,6 +554,12 @@ const KioskInterface = () => {
 
   const handleEmployeeRecognized = async (employee: any, confidence: number) => {
     try {
+      // Clear any existing timeout
+      if (userTimeout) {
+        clearTimeout(userTimeout);
+        setUserTimeout(null);
+      }
+
       // Check employee status including breaks and temp exits
       const status = await getEmployeeStatus(employee.id);
       setEmployeeStatus(status);
@@ -613,6 +622,15 @@ const KioskInterface = () => {
         console.log('🔄 Employee already checked in, showing action options');
         speakMessage("Hello! What would you like to do today?");
         setKioskState('standby');
+        
+        // Set timeout to auto-reset after 30 seconds of inactivity
+        const timeout = setTimeout(() => {
+          console.log('⏰ Auto-resetting kiosk due to user inactivity');
+          speakMessage("Session timed out. Please show your face again.");
+          resetKioskState();
+        }, 30000); // 30 seconds
+        setUserTimeout(timeout);
+        
         return; // Don't auto-process, show options instead
       }
 
@@ -763,6 +781,7 @@ const KioskInterface = () => {
   };
 
   const resetKioskState = () => {
+    console.log('🔄 Resetting kiosk state and restarting face recognition');
     setCurrentEmployee(null);
     setAttendanceAction(null);
     setTempExitRequest(null);
@@ -771,6 +790,13 @@ const KioskInterface = () => {
     setSelectedBreakType(null);
     setEmployeeStatus(null);
     setKioskState('standby');
+    setIsProcessing(false);
+    
+    // Restart face recognition loop after reset
+    setTimeout(() => {
+      setFaceDetectionActive(true);
+      startFaceRecognitionLoop();
+    }, 1000);
   };
 
   if (isLoading) {
